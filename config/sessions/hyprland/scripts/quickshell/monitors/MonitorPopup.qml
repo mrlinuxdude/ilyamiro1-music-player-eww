@@ -26,33 +26,114 @@ Item {
     // -------------------------------------------------------------------------
     // STATE & MATH
     // -------------------------------------------------------------------------
-    property string activeMonitorName: "Unknown"
-    property string currentRes: "1920x1080"
-    property string currentRate: "60Hz"
-
-    property string selectedRes: currentRes
-    property string selectedRate: currentRate
+    property int activeEditIndex: 0
+    property real uiScale: 0.10 
     
-    // Dynamic Accent Colors assigned by selection
+    // Dynamically tracks whichever monitor is NOT currently selected
+    property int stationaryIndex: monitorsModel.count === 2 ? (activeEditIndex === 0 ? 1 : 0) : 0
+    
+    // Wayland Absolute Anchor tracking
+    property int originalLayoutOriginX: 0
+    property int originalLayoutOriginY: 0
+
+    ListModel {
+        id: monitorsModel
+    }
+    
     property color selectedResAccent: "#cba6f7"
     property color selectedRateAccent: "#b4befe"
 
-    // Dynamic extraction for physical scaling
-    property real simW: parseInt(window.selectedRes.split("x")[0]) || 1920
-    property real simH: parseInt(window.selectedRes.split("x")[1]) || 1080
+    property real currentSimW: monitorsModel.count > 0 ? monitorsModel.get(0).resW : 1920
+    property real currentSimH: monitorsModel.count > 0 ? monitorsModel.get(0).resH : 1080
 
     property real globalOrbitAngle: 0
     NumberAnimation on globalOrbitAngle {
-        from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: true
+        from: 0
+        to: Math.PI * 2
+        duration: 90000
+        loops: Animation.Infinite
+        running: true
     }
 
     property real introState: 0.0
     Component.onCompleted: introState = 1.0
     Behavior on introState { NumberAnimation { duration: 800; easing.type: Easing.OutQuint } }
 
-    // HOISTED BUTTON STATES
     property bool applyHovered: false
     property bool applyPressed: false
+
+    onActiveEditIndexChanged: {
+        menuTransitionAnim.restart();
+    }
+
+    // MATHEMATICAL PERIMETER GLUE: Forces a proposed coordinate to perfectly touch the stationary monitor
+    function getPerimeterSnap(pX, pY, sX, sY, sW, sH, mW, mH, snapT) {
+        let edges = [
+            { x1: sX - mW, x2: sX + sW, y1: sY - mH, y2: sY - mH }, // Top Edge
+            { x1: sX - mW, x2: sX + sW, y1: sY + sH, y2: sY + sH }, // Bottom Edge
+            { x1: sX - mW, x2: sX - mW, y1: sY - mH, y2: sY + sH }, // Left Edge
+            { x1: sX + sW, x2: sX + sW, y1: sY - mH, y2: sY + sH }  // Right Edge
+        ];
+
+        let bestX = pX;
+        let bestY = pY;
+        let minDist = 999999;
+
+        for (let i = 0; i < 4; i++) {
+            let e = edges[i];
+            
+            let cx = Math.max(e.x1, Math.min(pX, e.x2));
+            let cy = Math.max(e.y1, Math.min(pY, e.y2));
+
+            if (Math.abs(cx - sX) < snapT) cx = sX;
+            if (Math.abs(cx - (sX + sW - mW)) < snapT) cx = sX + sW - mW;
+            if (Math.abs(cx - (sX + sW/2 - mW/2)) < snapT) cx = sX + sW/2 - mW/2;
+            
+            if (Math.abs(cy - sY) < snapT) cy = sY;
+            if (Math.abs(cy - (sY + sH - mH)) < snapT) cy = sY + sH - mH;
+            if (Math.abs(cy - (sY + sH/2 - mH/2)) < snapT) cy = sY + sH/2 - mH/2;
+
+            let dist = Math.hypot(pX - cx, pY - cy);
+            if (dist < minDist) {
+                minDist = dist;
+                bestX = cx;
+                bestY = cy;
+            }
+        }
+        return { x: bestX, y: bestY };
+    }
+
+    function forceLayoutUpdate() {
+        if (monitorsModel.count === 2) {
+            let mIdx = window.activeEditIndex;
+            let sIdx = window.stationaryIndex;
+            
+            let sModel = monitorsModel.get(sIdx);
+            let mModel = monitorsModel.get(mIdx);
+            
+            let sW = (sModel.resW / sModel.sysScale) * window.uiScale;
+            let sH = (sModel.resH / sModel.sysScale) * window.uiScale;
+            let mW = (mModel.resW / mModel.sysScale) * window.uiScale;
+            let mH = (mModel.resH / mModel.sysScale) * window.uiScale;
+            
+            let snapped = window.getPerimeterSnap(
+                mModel.uiX, mModel.uiY, 
+                sModel.uiX, sModel.uiY, 
+                sW, sH, mW, mH, 20
+            );
+            
+            monitorsModel.setProperty(mIdx, "uiX", snapped.x);
+            monitorsModel.setProperty(mIdx, "uiY", snapped.y);
+        }
+    }
+
+    Timer {
+        id: delayedLayoutUpdate
+        interval: 10
+        running: false
+        repeat: false
+        onTriggered: window.forceLayoutUpdate()
+    }
 
     // -------------------------------------------------------------------------
     // NATIVE SYSTEM PROCESSES 
@@ -65,17 +146,37 @@ Item {
             onStreamFinished: {
                 try {
                     let data = JSON.parse(this.text.trim());
+                    monitorsModel.clear();
+                    
+                    let minX = 999999, minY = 999999;
+
                     for (let i = 0; i < data.length; i++) {
-                        if (data[i].focused) {
-                            window.activeMonitorName = data[i].name;
-                            window.currentRes = data[i].width + "x" + data[i].height;
-                            window.currentRate = Math.round(data[i].refreshRate) + "Hz";
-                            
-                            window.selectedRes = window.currentRes;
-                            window.selectedRate = window.currentRate;
-                            break;
-                        }
+                        if (data[i].x < minX) minX = data[i].x;
+                        if (data[i].y < minY) minY = data[i].y;
                     }
+
+                    window.originalLayoutOriginX = minX !== 999999 ? minX : 0;
+                    window.originalLayoutOriginY = minY !== 999999 ? minY : 0;
+
+                    for (let i = 0; i < data.length; i++) {
+                        let scl = data[i].scale !== undefined ? data[i].scale : 1.0;
+                        let normalizedX = (data[i].x - minX) * window.uiScale;
+                        let normalizedY = (data[i].y - minY) * window.uiScale;
+
+                        monitorsModel.append({
+                            name: data[i].name,
+                            resW: data[i].width,
+                            resH: data[i].height,
+                            sysScale: scl,
+                            rate: Math.round(data[i].refreshRate).toString(),
+                            uiX: normalizedX,
+                            uiY: normalizedY
+                        });
+
+                        if (data[i].focused) window.activeEditIndex = i;
+                    }
+                    
+                    window.forceLayoutUpdate();
                 } catch(e) {}
             }
         }
@@ -89,7 +190,6 @@ Item {
         scale: 0.95 + (0.05 * introState)
         opacity: introState
 
-        // Outer Border
         Rectangle {
             anchors.fill: parent
             radius: 30
@@ -98,9 +198,10 @@ Item {
             border.width: 1
             clip: true
 
-            // Ambient background blobs matching network/battery
             Rectangle {
-                width: parent.width * 0.8; height: width; radius: width / 2
+                width: parent.width * 0.8
+                height: width
+                radius: width / 2
                 x: (parent.width / 2 - width / 2) + Math.cos(window.globalOrbitAngle * 2) * 150
                 y: (parent.height / 2 - height / 2) + Math.sin(window.globalOrbitAngle * 2) * 100
                 opacity: 0.04
@@ -108,7 +209,9 @@ Item {
                 Behavior on color { ColorAnimation { duration: 1000 } }
             }
             Rectangle {
-                width: parent.width * 0.9; height: width; radius: width / 2
+                width: parent.width * 0.9
+                height: width
+                radius: width / 2
                 x: (parent.width / 2 - width / 2) + Math.sin(window.globalOrbitAngle * 1.5) * -150
                 y: (parent.height / 2 - height / 2) + Math.cos(window.globalOrbitAngle * 1.5) * -100
                 opacity: 0.04
@@ -117,110 +220,391 @@ Item {
             }
 
             // ==========================================
-            // MAIN DISPLAY GRAPHIC (MORPHING)
+            // LEFT SIDE VISUAL AREA
             // ==========================================
             Item {
-                id: monitorVisual
-                width: 340
+                id: leftVisualArea
+                width: 380
                 height: 300
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.verticalCenterOffset: -20
-                anchors.leftMargin: 30
+                anchors.leftMargin: 20
 
-                // Stand Base
-                Rectangle {
-                    id: standBase
-                    width: 130; height: 8; radius: 4
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 20
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    color: window.surface1
-                }
-                
-                // Stand Neck
-                Rectangle {
-                    id: standNeck
-                    width: 34; height: 70
-                    anchors.bottom: standBase.top
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    color: window.surface0
-                    
-                    Rectangle {
-                        width: 10; height: 30; radius: 5
+                // --------------------------------------------------
+                // MODE 1: SINGLE MONITOR
+                // --------------------------------------------------
+                Item {
+                    anchors.fill: parent
+                    visible: monitorsModel.count === 1
+
+                    Item {
+                        id: singleMonitorZoom
                         anchors.centerIn: parent
-                        color: window.base
+                        width: 380
+                        height: 280
+                        scale: Math.min(1.0, 2200 / window.currentSimW)
+                        Behavior on scale { NumberAnimation { duration: 600; easing.type: Easing.OutQuint } }
+
+                        Rectangle {
+                            id: deskSurface
+                            width: 1000
+                            height: 14
+                            radius: 6
+                            anchors.top: standBase.bottom
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            color: window.mantle
+                            border.color: window.surface0
+                            border.width: 1
+
+                            Rectangle { 
+                                width: 24
+                                height: 350
+                                radius: 4
+                                color: window.crust
+                                anchors.top: parent.bottom
+                                anchors.topMargin: -5
+                                anchors.left: parent.left
+                                anchors.leftMargin: 100
+                                z: -1 
+                            }
+                            Rectangle { 
+                                width: 24
+                                height: 350
+                                radius: 4
+                                color: window.crust
+                                anchors.top: parent.bottom
+                                anchors.topMargin: -5
+                                anchors.right: parent.right
+                                anchors.rightMargin: 100
+                                z: -1 
+                            }
+                        }
+
+                        Rectangle {
+                            id: standBase
+                            width: 130
+                            height: 8
+                            radius: 4
+                            anchors.bottom: parent.bottom
+                            anchors.bottomMargin: 20
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            color: window.surface1
+                        }
+                        
+                        Rectangle {
+                            id: standNeck
+                            width: 34
+                            height: 70
+                            anchors.bottom: standBase.top
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            color: window.surface0
+                            Rectangle { 
+                                width: 10
+                                height: 30
+                                radius: 5
+                                anchors.centerIn: parent
+                                color: window.base 
+                            }
+                        }
+
+                        Rectangle {
+                            id: screenBezel
+                            width: 140 + (180 * (window.currentSimW / 1920))
+                            height: 90 + (90 * (window.currentSimH / 1080))
+                            anchors.bottom: standNeck.top
+                            anchors.bottomMargin: -10
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            radius: 12
+                            color: window.crust
+                            border.color: window.surface2
+                            border.width: 2
+                            
+                            Behavior on width { NumberAnimation { duration: 600; easing.type: Easing.OutQuint } }
+                            Behavior on height { NumberAnimation { duration: 600; easing.type: Easing.OutQuint } }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                radius: 6
+                                color: window.surface0
+                                clip: true
+                                
+                                gradient: Gradient {
+                                    orientation: Gradient.Vertical
+                                    GradientStop { 
+                                        position: 0.0
+                                        color: Qt.tint(window.surface0, Qt.rgba(window.selectedResAccent.r, window.selectedResAccent.g, window.selectedResAccent.b, 0.15))
+                                        Behavior on color { ColorAnimation { duration: 400 } } 
+                                    }
+                                    GradientStop { 
+                                        position: 1.0
+                                        color: Qt.tint(window.surface0, Qt.rgba(window.selectedRateAccent.r, window.selectedRateAccent.g, window.selectedRateAccent.b, 0.1))
+                                        Behavior on color { ColorAnimation { duration: 400 } } 
+                                    }
+                                }
+                                
+                                Grid { 
+                                    anchors.centerIn: parent
+                                    rows: 10
+                                    columns: 15
+                                    spacing: 20
+                                    Repeater { 
+                                        model: 150
+                                        Rectangle { width: 2; height: 2; radius: 1; color: "#1affffff" } 
+                                    } 
+                                }
+
+                                Item {
+                                    anchors.centerIn: parent
+                                    scale: 1.0 / singleMonitorZoom.scale
+                                    
+                                    ColumnLayout {
+                                        anchors.centerIn: parent
+                                        spacing: 4
+                                        Text { 
+                                            Layout.alignment: Qt.AlignHCenter
+                                            font.family: "Iosevka Nerd Font"
+                                            font.pixelSize: 38
+                                            color: window.selectedResAccent
+                                            text: "󰍹"
+                                            Behavior on color { ColorAnimation { duration: 400 } } 
+                                        }
+                                        Text { 
+                                            Layout.alignment: Qt.AlignHCenter
+                                            font.family: "JetBrains Mono"
+                                            font.weight: Font.Bold
+                                            font.pixelSize: 16
+                                            color: window.text
+                                            text: monitorsModel.count > 0 ? monitorsModel.get(0).name : "Unknown" 
+                                        }
+                                        Text { 
+                                            Layout.alignment: Qt.AlignHCenter
+                                            font.family: "JetBrains Mono"
+                                            font.pixelSize: 12
+                                            color: window.subtext0
+                                            text: window.currentSimW + "x" + window.currentSimH + " @ " + (monitorsModel.count > 0 ? monitorsModel.get(0).rate : "60") + "Hz" 
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
-                // The Screen Bezel (Dynamically Morphs based on Resolution!)
-                Rectangle {
-                    id: screenBezel
-                    width: 140 + (180 * (window.simW / 1920))
-                    height: 90 + (90 * (window.simH / 1080))
-                    
-                    anchors.bottom: standNeck.top
-                    anchors.bottomMargin: -10
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    radius: 12
-                    color: window.crust
-                    border.color: window.surface2
-                    border.width: 2
-                    
-                    // Fluid physics for the morphing
-                    Behavior on width { NumberAnimation { duration: 600; easing.type: Easing.OutElastic; easing.overshoot: 1.2 } }
-                    Behavior on height { NumberAnimation { duration: 600; easing.type: Easing.OutElastic; easing.overshoot: 1.2 } }
+                // --------------------------------------------------
+                // MODE 2: MULTI-MONITOR
+                // --------------------------------------------------
+                Item {
+                    anchors.fill: parent
+                    visible: monitorsModel.count > 1
 
-                    // The actual "Display" inside
-                    Rectangle {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        radius: 6
-                        color: window.surface0
-                        clip: true
+                    Item {
+                        id: multiMonitorView
+                        width: 380
+                        height: 280
+                        anchors.centerIn: parent
+                        clip: true 
 
-                        gradient: Gradient {
-                            orientation: Gradient.Vertical
-                            GradientStop { position: 0.0; color: Qt.tint(window.surface0, Qt.rgba(window.selectedResAccent.r, window.selectedResAccent.g, window.selectedResAccent.b, 0.15)); Behavior on color { ColorAnimation { duration: 400 } } }
-                            GradientStop { position: 1.0; color: Qt.tint(window.surface0, Qt.rgba(window.selectedRateAccent.r, window.selectedRateAccent.g, window.selectedRateAccent.b, 0.1)); Behavior on color { ColorAnimation { duration: 400 } } }
-                        }
-
-                        // Background grid to emphasize the size change
                         Grid {
                             anchors.centerIn: parent
-                            rows: 10; columns: 15; spacing: 20
-                            Repeater {
-                                model: 150
-                                Rectangle { width: 2; height: 2; radius: 1; color: "#1affffff" }
+                            rows: 25
+                            columns: 34
+                            spacing: 18
+                            Repeater { 
+                                model: 850
+                                Rectangle { width: 2; height: 2; radius: 1; color: "#1affffff" } 
                             }
                         }
 
-                        ColumnLayout {
-                            anchors.centerIn: parent
-                            spacing: 4
+                        // Perfect mathematical scale: Centers the Bounding Box of both monitors
+                        property real targetScale: {
+                            if (monitorsModel.count < 2) return 1.0;
+                            let sModel = monitorsModel.get(window.stationaryIndex);
+                            let mModel = monitorsModel.get(window.activeEditIndex);
+                            let sW = (sModel.resW / sModel.sysScale) * window.uiScale;
+                            let sH = (sModel.resH / sModel.sysScale) * window.uiScale;
+                            let mW = (mModel.resW / mModel.sysScale) * window.uiScale;
+                            let mH = (mModel.resH / mModel.sysScale) * window.uiScale;
+
+                            let minX = Math.min(sModel.uiX, mModel.uiX);
+                            let minY = Math.min(sModel.uiY, mModel.uiY);
+                            let maxX = Math.max(sModel.uiX + sW, mModel.uiX + mW);
+                            let maxY = Math.max(sModel.uiY + sH, mModel.uiY + mH);
+
+                            let requiredW = (maxX - minX) + 80; 
+                            let requiredH = (maxY - minY) + 80;
+
+                            return Math.min(1.8, Math.min(340 / requiredW, 240 / requiredH));
+                        }
+                        
+                        // Centering math: Keep the bounding box perfectly centered in the 380x280 view
+                        property real offsetX: {
+                            if (monitorsModel.count < 2) return 0;
+                            let sModel = monitorsModel.get(window.stationaryIndex);
+                            let mModel = monitorsModel.get(window.activeEditIndex);
+                            let sW = (sModel.resW / sModel.sysScale) * window.uiScale;
+                            let mW = (mModel.resW / mModel.sysScale) * window.uiScale;
                             
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                font.family: "Iosevka Nerd Font"
-                                font.pixelSize: 38
-                                color: window.selectedResAccent
-                                text: "󰍹"
-                                Behavior on color { ColorAnimation { duration: 400 } }
-                            }
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                font.family: "JetBrains Mono"
-                                font.weight: Font.Bold
-                                font.pixelSize: 16
-                                color: window.text
-                                text: window.activeMonitorName
-                            }
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: 12
-                                color: window.subtext0
-                                text: window.selectedRes + " @ " + window.selectedRate
+                            let minX = Math.min(sModel.uiX, mModel.uiX);
+                            let maxX = Math.max(sModel.uiX + sW, mModel.uiX + mW);
+                            let centerX = minX + (maxX - minX) / 2;
+                            
+                            return 190 - (centerX * targetScale);
+                        }
+                        
+                        property real offsetY: {
+                            if (monitorsModel.count < 2) return 0;
+                            let sModel = monitorsModel.get(window.stationaryIndex);
+                            let mModel = monitorsModel.get(window.activeEditIndex);
+                            let sH = (sModel.resH / sModel.sysScale) * window.uiScale;
+                            let mH = (mModel.resH / mModel.sysScale) * window.uiScale;
+                            
+                            let minY = Math.min(sModel.uiY, mModel.uiY);
+                            let maxY = Math.max(sModel.uiY + sH, mModel.uiY + mH);
+                            let centerY = minY + (maxY - minY) / 2;
+                            
+                            return 140 - (centerY * targetScale);
+                        }
+
+                        Item {
+                            id: transformNode
+                            x: multiMonitorView.offsetX
+                            y: multiMonitorView.offsetY
+                            scale: multiMonitorView.targetScale
+                            transformOrigin: Item.TopLeft
+
+                            Behavior on x { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+                            Behavior on y { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+                            Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+
+                            Repeater {
+                                id: monitorRepeater
+                                model: monitorsModel
+
+                                Item {
+                                    property bool isActive: window.activeEditIndex === index
+
+                                    // THE VISIBLE SNAPPED MONITOR CARD
+                                    Rectangle {
+                                        id: monitorCard
+                                        x: model.uiX
+                                        y: model.uiY
+                                        
+                                        width: (model.resW / model.sysScale) * window.uiScale
+                                        height: (model.resH / model.sysScale) * window.uiScale
+                                        
+                                        radius: 8
+                                        color: isActive ? window.surface1 : window.crust
+                                        border.color: isActive ? window.selectedResAccent : window.surface2
+                                        border.width: isActive ? 2 : 1
+                                        z: isActive ? 5 : 0
+
+                                        Behavior on x { NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
+                                        Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
+                                        
+                                        Behavior on border.color { ColorAnimation { duration: 300 } }
+                                        Behavior on color { ColorAnimation { duration: 300 } }
+                                        Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+                                        Behavior on height { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+
+                                        Item {
+                                            anchors.centerIn: parent
+                                            width: 110
+                                            height: 80
+                                            
+                                            property real idealScale: Math.min(1.2, parent.width / 110, parent.height / 80) / transformNode.scale
+                                            property real maxPhysicalScale: Math.min((parent.width * 0.9) / width, (parent.height * 0.9) / height)
+                                            scale: Math.min(idealScale, maxPhysicalScale)
+                                            
+                                            ColumnLayout {
+                                                anchors.centerIn: parent
+                                                spacing: 2
+                                                Text { 
+                                                    Layout.alignment: Qt.AlignHCenter
+                                                    font.family: "Iosevka Nerd Font"
+                                                    font.pixelSize: 32
+                                                    color: isActive ? window.selectedResAccent : window.text
+                                                    text: "󰍹"
+                                                    Behavior on color { ColorAnimation { duration: 300 } } 
+                                                }
+                                                Text { 
+                                                    Layout.alignment: Qt.AlignHCenter
+                                                    font.family: "JetBrains Mono"
+                                                    font.weight: Font.Black
+                                                    font.pixelSize: 13
+                                                    color: window.text
+                                                    text: model.name 
+                                                }
+                                                Text { 
+                                                    Layout.alignment: Qt.AlignHCenter
+                                                    font.family: "JetBrains Mono"
+                                                    font.pixelSize: 10
+                                                    color: window.subtext0
+                                                    text: model.resW + "x" + model.resH + " @ " + model.rate + "Hz" 
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // THE INVISIBLE GHOST DRAGGER
+                                    Item {
+                                        id: ghostDrag
+                                        x: model.uiX
+                                        y: model.uiY
+                                        width: monitorCard.width
+                                        height: monitorCard.height
+                                        z: isActive ? 10 : 1
+
+                                        MouseArea {
+                                            id: ghostMa
+                                            anchors.fill: parent
+                                            drag.target: ghostDrag
+                                            drag.axis: Drag.XAndYAxis
+                                            
+                                            onPressed: {
+                                                window.activeEditIndex = index;
+                                                ghostDrag.x = model.uiX;
+                                                ghostDrag.y = model.uiY;
+                                            }
+
+                                            onPositionChanged: {
+                                                if (drag.active && monitorsModel.count === 2) {
+                                                    let sIdx = window.stationaryIndex;
+                                                    let sModel = monitorsModel.get(sIdx);
+                                                    
+                                                    let sW = (sModel.resW / sModel.sysScale) * window.uiScale;
+                                                    let sH = (sModel.resH / sModel.sysScale) * window.uiScale;
+                                                    let mW = monitorCard.width;
+                                                    let mH = monitorCard.height;
+
+                                                    // Hard boundary limit: Stop the ghost from flying infinitely off the canvas
+                                                    let padding = 40;
+                                                    let minX = sModel.uiX - mW - padding;
+                                                    let maxX = sModel.uiX + sW + padding;
+                                                    let minY = sModel.uiY - mH - padding;
+                                                    let maxY = sModel.uiY + sH + padding;
+
+                                                    ghostDrag.x = Math.max(minX, Math.min(ghostDrag.x, maxX));
+                                                    ghostDrag.y = Math.max(minY, Math.min(ghostDrag.y, maxY));
+                                                    
+                                                    let snapped = window.getPerimeterSnap(
+                                                        ghostDrag.x, ghostDrag.y, 
+                                                        sModel.uiX, sModel.uiY, 
+                                                        sW, sH, mW, mH, 20
+                                                    );
+                                                    
+                                                    monitorsModel.setProperty(index, "uiX", snapped.x);
+                                                    monitorsModel.setProperty(index, "uiY", snapped.y);
+                                                }
+                                            }
+
+                                            onReleased: {
+                                                ghostDrag.x = model.uiX;
+                                                ghostDrag.y = model.uiY;
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -230,231 +614,268 @@ Item {
             // ==========================================
             // INTERACTIVE SELECTION GRIDS
             // ==========================================
-            ColumnLayout {
-                anchors.left: monitorVisual.right
+            Item {
+                anchors.left: leftVisualArea.right
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter 
-                anchors.leftMargin: 20
-                anchors.rightMargin: 40
+                anchors.leftMargin: 10
+                anchors.rightMargin: 30
                 height: 310
-                spacing: 12
 
-                // --- RESOLUTION CARDS SECTION ---
-                GridLayout {
-                    Layout.fillWidth: true
-                    columns: 2
-                    columnSpacing: 10
-                    rowSpacing: 10
-
-                    Repeater {
-                        model: ListModel {
-                            ListElement { res: "1920x1080"; label: "FHD"; accent: "#cba6f7" }
-                            ListElement { res: "1600x900"; label: "HD+"; accent: "#f5c2e7" } 
-                            ListElement { res: "1366x768"; label: "WXGA"; accent: "#eba0ac" } 
-                            ListElement { res: "1280x720"; label: "HD"; accent: "#fab387" } 
-                            ListElement { res: "1024x768"; label: "XGA"; accent: "#f9e2af" } 
-                            ListElement { res: "800x600"; label: "SVGA"; accent: "#a6e3a1" }  
+                SequentialAnimation {
+                    id: menuTransitionAnim
+                    ParallelAnimation {
+                        ScaleAnimator { 
+                            target: rightSideContainer
+                            from: 0.99
+                            to: 1.0
+                            duration: 200
+                            easing.type: Easing.OutSine 
                         }
+                        NumberAnimation { 
+                            target: highlightFlash
+                            property: "opacity"
+                            from: 0.05
+                            to: 0.0
+                            duration: 250
+                            easing.type: Easing.OutQuad 
+                        }
+                    }
+                }
 
-                        delegate: Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 48
-                            radius: 12
-                            
-                            property bool isSel: window.selectedRes === res
-                            property color accentColor: accent
-                            
-                            color: isSel ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.1) : (resMa.containsMouse ? window.surface0 : window.mantle)
-                            border.color: isSel ? accentColor : (resMa.containsMouse ? window.surface1 : "transparent")
-                            border.width: isSel ? 2 : 1
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                            Behavior on border.color { ColorAnimation { duration: 200 } }
+                Rectangle {
+                    id: highlightFlash
+                    anchors.fill: rightSideContainer
+                    anchors.margins: -10
+                    color: window.selectedResAccent
+                    opacity: 0.0
+                    radius: 12
+                }
 
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: 12
-                                spacing: 8
+                ColumnLayout {
+                    id: rightSideContainer
+                    anchors.fill: parent
+                    spacing: 12
 
-                                Text {
-                                    font.family: "JetBrains Mono"
-                                    font.weight: isSel ? Font.Black : Font.Bold
-                                    font.pixelSize: 14
-                                    color: isSel ? accentColor : window.text
-                                    text: label
-                                    Behavior on color { ColorAnimation { duration: 200 } }
-                                }
+                    // --- RESOLUTION CARDS SECTION ---
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 2
+                        columnSpacing: 10
+                        rowSpacing: 10
+
+                        Repeater {
+                            model: ListModel {
+                                ListElement { resW: 3840; resH: 2160; label: "4K"; accent: "#f5c2e7" } 
+                                ListElement { resW: 2560; resH: 1440; label: "QHD"; accent: "#cba6f7" }
+                                ListElement { resW: 1920; resH: 1080; label: "FHD"; accent: "#89b4fa" }
+                                ListElement { resW: 1600; resH: 900;  label: "HD+"; accent: "#94e2d5" } 
+                                ListElement { resW: 1366; resH: 768;  label: "WXGA"; accent: "#f9e2af" } 
+                                ListElement { resW: 1280; resH: 720;  label: "HD"; accent: "#fab387" } 
+                                ListElement { resW: 1024; resH: 768;  label: "XGA"; accent: "#a6e3a1" } 
+                                ListElement { resW: 800;  resH: 600;  label: "SVGA"; accent: "#f38ba8" } 
+                            }
+
+                            delegate: Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 48
+                                radius: 12
                                 
-                                Item { Layout.fillWidth: true } // Spacer
-
-                                Text {
-                                    font.family: "JetBrains Mono"
-                                    font.pixelSize: 11
-                                    color: isSel ? window.text : window.overlay0
-                                    text: res
-                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                property bool isSel: {
+                                    if (monitorsModel.count === 0) return false;
+                                    let activeMon = monitorsModel.get(window.activeEditIndex);
+                                    return activeMon.resW === resW && activeMon.resH === resH;
                                 }
-                            }
-
-                            scale: resMa.pressed ? 0.96 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutSine } }
-
-                            MouseArea {
-                                id: resMa
-                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    window.selectedRes = res;
-                                    window.selectedResAccent = accentColor;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Item { Layout.preferredHeight: 15 } // Spacer between sections
-
-                // --- REFRESH RATE SLIDER SECTION ---
-                Item {
-                    id: sliderContainer
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 50
-                    Layout.leftMargin: 10
-                    Layout.rightMargin: 10
-
-                    property var rates: [30, 60, 75, 100, 120, 144]
-                    property var rateColors: ["#f38ba8", "#b4befe", "#89b4fa", "#74c7ec", "#94e2d5", "#a6e3a1"]
-                    
-                    // Safely find the closest index based on the active rate
-                    property int currentIndex: {
-                        let currentVal = parseInt(window.selectedRate) || 60;
-                        let closestIdx = 0;
-                        let minDiff = 9999;
-                        for (let i = 0; i < rates.length; i++) {
-                            let diff = Math.abs(rates[i] - currentVal);
-                            if (diff < minDiff) {
-                                minDiff = diff;
-                                closestIdx = i;
-                            }
-                        }
-                        return closestIdx;
-                    }
-
-                    // Fluid property for the 1:1 drag feeling
-                    property real visualPct: currentIndex / (rates.length - 1)
-
-                    onCurrentIndexChanged: {
-                        if (!sliderMa.pressed) {
-                            visualPct = currentIndex / (rates.length - 1);
-                        }
-                    }
-
-                    Rectangle {
-                        id: track
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.verticalCenterOffset: -10
-                        height: 8
-                        radius: 4
-                        color: window.mantle
-                        border.color: window.crust
-                        border.width: 1
-
-                        // Active track fill
-                        Rectangle {
-                            width: knob.x + knob.width / 2
-                            height: parent.height
-                            radius: parent.radius
-                            color: window.selectedRateAccent
-                            // No width behavior here, it directly mirrors the knob's position for zero latency
-                            Behavior on color { ColorAnimation { duration: 200 } }
-                        }
-                    }
-
-                    // Ticks and Labels
-                    Repeater {
-                        model: sliderContainer.rates.length
-                        Item {
-                            x: (index / (sliderContainer.rates.length - 1)) * track.width
-                            y: track.y + 18
-
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                text: sliderContainer.rates[index] + "Hz"
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: 11
-                                font.weight: sliderContainer.currentIndex === index ? Font.Bold : Font.Normal
-                                color: sliderContainer.currentIndex === index ? window.selectedRateAccent : window.overlay0
+                                property color accentColor: accent
+                                
+                                color: isSel ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.1) : (resMa.containsMouse ? window.surface0 : window.mantle)
+                                border.color: isSel ? accentColor : (resMa.containsMouse ? window.surface1 : "transparent")
+                                border.width: isSel ? 2 : 1
+                                
                                 Behavior on color { ColorAnimation { duration: 200 } }
+                                Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 12
+                                    spacing: 8
+                                    
+                                    Text { 
+                                        font.family: "JetBrains Mono"
+                                        font.weight: isSel ? Font.Black : Font.Bold
+                                        font.pixelSize: 16
+                                        color: isSel ? accentColor : window.text
+                                        text: label
+                                        Behavior on color { ColorAnimation { duration: 200 } } 
+                                    }
+                                    
+                                    Item { Layout.fillWidth: true } 
+                                    
+                                    Text { 
+                                        font.family: "JetBrains Mono"
+                                        font.pixelSize: 12
+                                        color: isSel ? window.text : window.overlay0
+                                        text: resW + "x" + resH
+                                        Behavior on color { ColorAnimation { duration: 200 } } 
+                                    }
+                                }
+
+                                scale: resMa.pressed ? 0.96 : 1.0
+                                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutSine } }
+
+                                MouseArea {
+                                    id: resMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (monitorsModel.count > 0) {
+                                            window.selectedResAccent = accentColor;
+                                            monitorsModel.setProperty(window.activeEditIndex, "resW", resW);
+                                            monitorsModel.setProperty(window.activeEditIndex, "resH", resH);
+                                            delayedLayoutUpdate.restart();
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
 
-                    // Draggable Knob
-                    Rectangle {
-                        id: knob
-                        width: 20
-                        height: 20
-                        radius: 10
-                        color: sliderMa.containsPress ? window.selectedRateAccent : window.text
-                        anchors.verticalCenter: track.verticalCenter
-                        x: (sliderContainer.visualPct * track.width) - width / 2
+                    Item { Layout.preferredHeight: 15 } 
+
+                    // --- REFRESH RATE SLIDER SECTION ---
+                    Item {
+                        id: sliderContainer
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 50
+                        Layout.leftMargin: 10
+                        Layout.rightMargin: 10
+
+                        property var rates: [60, 75, 100, 120, 144, 240]
+                        property var rateColors: ["#f38ba8", "#b4befe", "#89b4fa", "#74c7ec", "#94e2d5", "#a6e3a1"]
                         
-                        // Disable the X animation completely while actively dragging for a 1:1 fluid feel
-                        Behavior on x {
-                            enabled: !sliderMa.pressed
-                            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+                        property int currentIndex: {
+                            if (monitorsModel.count === 0) return 0;
+                            let currentVal = parseInt(monitorsModel.get(window.activeEditIndex).rate) || 60;
+                            let closestIdx = 0;
+                            let minDiff = 9999;
+                            for (let i = 0; i < rates.length; i++) {
+                                let diff = Math.abs(rates[i] - currentVal);
+                                if (diff < minDiff) { 
+                                    minDiff = diff; 
+                                    closestIdx = i; 
+                                }
+                            }
+                            return closestIdx;
                         }
-                        Behavior on color { ColorAnimation { duration: 150 } }
 
-                        // Halo effect on hover
-                        border.width: sliderMa.containsMouse ? 4 : 0
-                        border.color: Qt.rgba(window.selectedRateAccent.r, window.selectedRateAccent.g, window.selectedRateAccent.b, 0.3)
-                        Behavior on border.width { NumberAnimation { duration: 150 } }
-                    }
+                        property real visualPct: currentIndex / (rates.length - 1)
 
-                    // Gesture Handling Area
-                    MouseArea {
-                        id: sliderMa
-                        anchors.fill: parent
-                        anchors.margins: -15
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        onCurrentIndexChanged: { 
+                            if (!sliderMa.pressed) visualPct = currentIndex / (rates.length - 1); 
+                        }
 
-                        function updateSelection(mouseX, snapToGrid) {
-                            let pct = (mouseX - track.x) / track.width;
-                            pct = Math.max(0, Math.min(1, pct));
-                            let idx = Math.round(pct * (sliderContainer.rates.length - 1));
+                        Rectangle {
+                            id: track
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.verticalCenterOffset: -10
+                            height: 12
+                            radius: 6
+                            color: window.mantle
+                            border.color: window.crust
+                            border.width: 1
                             
-                            if (snapToGrid) {
-                                sliderContainer.visualPct = idx / (sliderContainer.rates.length - 1);
-                            } else {
-                                sliderContainer.visualPct = pct;
+                            Rectangle { 
+                                width: knob.x + knob.width / 2
+                                height: parent.height
+                                radius: parent.radius
+                                color: window.selectedRateAccent
+                                Behavior on color { ColorAnimation { duration: 200 } } 
+                            }
+                        }
+
+                        Repeater {
+                            model: sliderContainer.rates.length
+                            Item {
+                                x: (index / (sliderContainer.rates.length - 1)) * track.width
+                                y: track.y + 20
+                                
+                                Text { 
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: sliderContainer.rates[index]
+                                    font.family: "JetBrains Mono"
+                                    font.pixelSize: 13
+                                    font.weight: sliderContainer.currentIndex === index ? Font.Bold : Font.Normal
+                                    color: sliderContainer.currentIndex === index ? window.selectedRateAccent : window.overlay0
+                                    Behavior on color { ColorAnimation { duration: 200 } } 
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            id: knob
+                            width: 24
+                            height: 24
+                            radius: 12
+                            color: sliderMa.containsPress ? window.selectedRateAccent : window.text
+                            anchors.verticalCenter: track.verticalCenter
+                            x: (sliderContainer.visualPct * track.width) - width / 2
+                            
+                            Behavior on x { 
+                                enabled: !sliderMa.pressed
+                                NumberAnimation { duration: 250; easing.type: Easing.OutCubic } 
+                            }
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            
+                            border.width: sliderMa.containsMouse ? 4 : 0
+                            border.color: Qt.rgba(window.selectedRateAccent.r, window.selectedRateAccent.g, window.selectedRateAccent.b, 0.3)
+                            Behavior on border.width { NumberAnimation { duration: 150 } }
+                        }
+
+                        MouseArea {
+                            id: sliderMa
+                            anchors.fill: parent
+                            anchors.margins: -15
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+
+                            function updateSelection(mouseX, snapToGrid) {
+                                if (monitorsModel.count === 0) return;
+                                let pct = (mouseX - track.x) / track.width;
+                                pct = Math.max(0, Math.min(1, pct));
+                                let idx = Math.round(pct * (sliderContainer.rates.length - 1));
+                                
+                                if (snapToGrid) {
+                                    sliderContainer.visualPct = idx / (sliderContainer.rates.length - 1);
+                                } else {
+                                    sliderContainer.visualPct = pct;
+                                }
+
+                                monitorsModel.setProperty(window.activeEditIndex, "rate", sliderContainer.rates[idx].toString());
+                                window.selectedRateAccent = sliderContainer.rateColors[idx];
                             }
 
-                            window.selectedRate = sliderContainer.rates[idx] + "Hz";
-                            window.selectedRateAccent = sliderContainer.rateColors[idx];
+                            onPressed: (mouse) => updateSelection(mouse.x, false)
+                            onPositionChanged: (mouse) => { if (pressed) updateSelection(mouse.x, false) }
+                            onReleased: (mouse) => updateSelection(mouse.x, true)
+                            onCanceled: () => sliderContainer.visualPct = sliderContainer.currentIndex / (sliderContainer.rates.length - 1)
                         }
-
-                        onPressed: (mouse) => updateSelection(mouse.x, false)
-                        onPositionChanged: (mouse) => {
-                            if (pressed) updateSelection(mouse.x, false)
-                        }
-                        onReleased: (mouse) => updateSelection(mouse.x, true)
-                        onCanceled: () => sliderContainer.visualPct = sliderContainer.currentIndex / (sliderContainer.rates.length - 1)
                     }
+                    
+                    Item { Layout.fillHeight: true } 
                 }
-                
-                Item { Layout.fillHeight: true } // Pushes everything neatly to the top
             }
 
             // ==========================================
-            // FLOATING APPLY BUTTON (Bottom Right)
+            // FLOATING APPLY BUTTON 
             // ==========================================
             Item {
                 id: applyButtonContainer
                 anchors.bottom: parent.bottom
                 anchors.right: parent.right
-                anchors.margins: 35
+                anchors.margins: 30
                 width: 170
                 height: 50
 
@@ -467,8 +888,8 @@ Item {
                     shadowOpacity: window.applyHovered ? 0.6 : 0.2
                     shadowVerticalOffset: 4
                     z: -1
-                    Behavior on shadowBlur { NumberAnimation { duration: 300 } }
-                    Behavior on shadowOpacity { NumberAnimation { duration: 300 } }
+                    Behavior on shadowBlur { NumberAnimation { duration: 300 } } 
+                    Behavior on shadowOpacity { NumberAnimation { duration: 300 } } 
                     Behavior on shadowColor { ColorAnimation { duration: 400 } }
                 }
 
@@ -477,10 +898,18 @@ Item {
                     anchors.fill: parent
                     radius: 25
                     
-                    gradient: Gradient {
+                    gradient: Gradient { 
                         orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: window.selectedResAccent; Behavior on color { ColorAnimation { duration: 400 } } }
-                        GradientStop { position: 1.0; color: window.selectedRateAccent; Behavior on color { ColorAnimation { duration: 400 } } }
+                        GradientStop { 
+                            position: 0.0
+                            color: window.selectedResAccent
+                            Behavior on color { ColorAnimation { duration: 400 } } 
+                        } 
+                        GradientStop { 
+                            position: 1.0
+                            color: window.selectedRateAccent
+                            Behavior on color { ColorAnimation { duration: 400 } } 
+                        } 
                     }
                     
                     scale: window.applyPressed ? 0.94 : (window.applyHovered ? 1.04 : 1.0)
@@ -488,26 +917,35 @@ Item {
 
                     Rectangle {
                         id: flashRect
-                        anchors.fill: parent; radius: 25; color: "#ffffff"
+                        anchors.fill: parent
+                        radius: 25
+                        color: "#ffffff"
                         opacity: 0.0
-                        PropertyAnimation on opacity { id: applyFlashAnim; to: 0.0; duration: 400; easing.type: Easing.OutExpo }
+                        PropertyAnimation on opacity { 
+                            id: applyFlashAnim
+                            to: 0.0
+                            duration: 400
+                            easing.type: Easing.OutExpo 
+                        }
                     }
 
                     RowLayout {
                         anchors.centerIn: parent
                         spacing: 8
+                        
                         Text { 
                             font.family: "Iosevka Nerd Font"
                             font.pixelSize: 20
                             color: window.crust
                             text: "󰸵" 
                         }
+                        
                         Text { 
                             font.family: "JetBrains Mono"
                             font.weight: Font.Black
                             font.pixelSize: 14
                             color: window.crust
-                            text: "Apply" 
+                            text: monitorsModel.count > 1 ? "Apply All" : "Apply" 
                         }
                     }
                 }
@@ -526,16 +964,69 @@ Item {
                     onCanceled: window.applyPressed = false
 
                     onClicked: {
-                        // 1. Visual trigger (Flash only)
-                        flashRect.opacity = 0.8;
+                        flashRect.opacity = 0.8; 
                         applyFlashAnim.start();
 
-                        let cleanRate = window.selectedRate.replace("Hz", "");
-                        let monitorStr = window.activeMonitorName + "," + window.selectedRes + "@" + cleanRate + ",auto,1";
-                        
-                        // 2. Natively trigger notify-send & hyprctl using execDetached
-                        Quickshell.execDetached(["notify-send", "Display Update", "Applied: " + window.selectedRes + " @ " + window.selectedRate]);
-                        Quickshell.execDetached(["hyprctl", "keyword", "monitor", monitorStr]);
+                        if (monitorsModel.count === 0) return;
+
+                        if (monitorsModel.count === 1) {
+                            let mon = monitorsModel.get(0);
+                            let monitorStr = mon.name + "," + mon.resW + "x" + mon.resH + "@" + mon.rate + ",auto," + mon.sysScale;
+                            Quickshell.execDetached(["notify-send", "Display Update", "Applied: " + mon.resW + "x" + mon.resH + " @ " + mon.rate + "Hz"]);
+                            Quickshell.execDetached(["sh", "-c", "hyprctl keyword monitor " + monitorStr]);
+                        } else {
+                            let rects = [];
+                            for (let i = 0; i < monitorsModel.count; i++) {
+                                let m = monitorsModel.get(i);
+                                let layoutW = Math.round(m.resW / m.sysScale);
+                                let layoutH = Math.round(m.resH / m.sysScale);
+                                let rawX = m.uiX / window.uiScale;
+                                let rawY = m.uiY / window.uiScale;
+                                rects.push({
+                                    x: rawX, y: rawY, w: layoutW, h: layoutH, 
+                                    resW: m.resW, resH: m.resH, name: m.name, 
+                                    rate: m.rate, sysScale: m.sysScale
+                                });
+                            }
+                            
+                            if (rects.length === 2) {
+                                let r0 = rects[0];
+                                let r1 = rects[1];
+                                
+                                let snapped = window.getPerimeterSnap(
+                                    r1.x, r1.y, 
+                                    r0.x, r0.y, 
+                                    r0.w, r0.h, r1.w, r1.h, 200 
+                                );
+                                
+                                r1.x = Math.round(snapped.x);
+                                r1.y = Math.round(snapped.y);
+                            }
+
+                            let finalMinX = 999999;
+                            let finalMinY = 999999;
+                            for (let i = 0; i < rects.length; i++) {
+                                if (rects[i].x < finalMinX) finalMinX = rects[i].x;
+                                if (rects[i].y < finalMinY) finalMinY = rects[i].y;
+                            }
+                            
+                            let batchCmds = [];
+                            let summaryString = "";
+                            for (let i = 0; i < rects.length; i++) {
+                                let r = rects[i];
+                                
+                                r.x = Math.round((r.x - finalMinX) + window.originalLayoutOriginX);
+                                r.y = Math.round((r.y - finalMinY) + window.originalLayoutOriginY);
+                                
+                                let monitorStr = r.name + "," + r.resW + "x" + r.resH + "@" + r.rate + "," + r.x + "x" + r.y + "," + r.sysScale;
+                                batchCmds.push("keyword monitor " + monitorStr);
+                                summaryString += r.name + " ";
+                            }
+                            
+                            let fullCommand = "hyprctl --batch '" + batchCmds.join(" ; ") + "'";
+                            Quickshell.execDetached(["sh", "-c", fullCommand]);
+                            Quickshell.execDetached(["notify-send", "Display Update", "Applied layout for: " + summaryString]);
+                        }
                     }
                 }
             }
