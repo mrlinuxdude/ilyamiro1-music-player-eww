@@ -23,28 +23,9 @@ PanelWindow {
     exclusiveZone: 52
     color: "transparent"
 
-    // Catppuccin Mocha Palette
-    QtObject {
+    // Dynamic Matugen Palette
+    MatugenColors {
         id: mocha
-        property string base: "#1e1e2e"
-        property string surface0: "#313244"
-        property string surface1: "#45475a"
-        property string surface2: "#585b70"
-        property string text: "#cdd6f4"
-        property string subtext0: "#a6adc8"
-        property string subtext1: "#bac2de"
-        property string overlay0: "#6c7086"
-        property string overlay1: "#7f849c"
-        property string overlay2: "#9399b2"
-        property string blue: "#89b4fa"
-        property string sapphire: "#74c7ec"
-        property string peach: "#fab387"
-        property string green: "#a6e3a1"
-        property string red: "#f38ba8"
-        property string mauve: "#cba6f7"
-        property string pink: "#f5c2e7"
-        property string yellow: "#f9e2af"
-        property string crust: "#11111b"
     }
 
     // --- State Variables ---
@@ -257,8 +238,8 @@ PanelWindow {
             // Search 
             Rectangle {
                 property bool isHovered: searchMouse.containsMouse
-                color: isHovered ? Qt.rgba(45/255, 45/255, 65/255, 0.95) : Qt.rgba(30/255, 30/255, 46/255, 0.85)
-                radius: 14; border.width: 1; border.color: Qt.rgba(255/255, 255/255, 255/255, isHovered ? 0.15 : 0.05)
+                color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.95) : Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
+                radius: 14; border.width: 1; border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, isHovered ? 0.15 : 0.05)
                 Layout.preferredHeight: parent.moduleHeight; Layout.preferredWidth: 48
                 
                 scale: isHovered ? 1.05 : 1.0
@@ -283,8 +264,8 @@ PanelWindow {
             // Notifications
             Rectangle {
                 property bool isHovered: notifMouse.containsMouse
-                color: isHovered ? Qt.rgba(45/255, 45/255, 65/255, 0.95) : Qt.rgba(30/255, 30/255, 46/255, 0.85)
-                radius: 14; border.width: 1; border.color: Qt.rgba(255/255, 255/255, 255/255, isHovered ? 0.15 : 0.05)
+                color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.95) : Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
+                radius: 14; border.width: 1; border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, isHovered ? 0.15 : 0.05)
                 Layout.preferredHeight: parent.moduleHeight; Layout.preferredWidth: 48
                 
                 scale: isHovered ? 1.05 : 1.0
@@ -295,7 +276,7 @@ PanelWindow {
                     anchors.centerIn: parent
                     text: ""
                     font.family: "Iosevka Nerd Font"; font.pixelSize: 18
-                    color: parent.isHovered ? mocha.blue : mocha.sapphire
+                    color: parent.isHovered ? mocha.yellow : mocha.text
                     Behavior on color { ColorAnimation { duration: 200 } }
                 }
                 MouseArea {
@@ -311,8 +292,8 @@ PanelWindow {
 
             // Workspaces 
             Rectangle {
-                color: Qt.rgba(30/255, 30/255, 46/255, 0.85)
-                radius: 14; border.width: 1; border.color: Qt.rgba(255/255, 255/255, 255/255, 0.05)
+                color: Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
+                radius: 14; border.width: 1; border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, 0.05)
                 Layout.preferredHeight: parent.moduleHeight
                 clip: true
                 
@@ -339,7 +320,13 @@ PanelWindow {
                             Behavior on targetWidth { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
                             
                             Layout.preferredHeight: 32; radius: 10
-                            color: modelData.state === "active" ? mocha.mauve : (isHovered ? mocha.surface2 : (modelData.state === "occupied" ? mocha.surface1 : "transparent"))
+                            
+                            // PERFECTED WORKSPACE STATES
+                            color: modelData.state === "active" 
+                                    ? mocha.mauve 
+                                    : (modelData.state === "occupied" 
+                                        ? Qt.rgba(mocha.surface2.r, mocha.surface2.g, mocha.surface2.b, 0.7) 
+                                        : (isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : "transparent"))
                             
                             // Safe Instantiation Cascade logic
                             property bool initAnimTrigger: barWindow.startupCascadeFinished
@@ -372,7 +359,12 @@ PanelWindow {
                                 font.family: "JetBrains Mono"
                                 font.pixelSize: 14
                                 font.weight: modelData.state === "active" ? Font.Black : Font.Bold
-                                color: modelData.state === "active" ? mocha.base : (modelData.state === "occupied" || parent.isHovered ? mocha.blue : mocha.surface2)
+                                
+                                // PERFECTED TEXT CONTRAST
+                                color: modelData.state === "active" 
+                                        ? mocha.base 
+                                        : (modelData.state === "occupied" ? mocha.text : mocha.overlay0)
+                                        
                                 Behavior on color { ColorAnimation { duration: 250 } }
                             }
                             MouseArea {
@@ -389,8 +381,8 @@ PanelWindow {
             // Media Player 
             Rectangle {
                 id: mediaBox
-                color: Qt.rgba(30/255, 30/255, 46/255, 0.85)
-                radius: 14; border.width: 1; border.color: Qt.rgba(255/255, 255/255, 255/255, 0.05)
+                color: Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
+                radius: 14; border.width: 1; border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, 0.05)
                 Layout.preferredHeight: parent.moduleHeight
                 clip: true 
                 
@@ -398,7 +390,6 @@ PanelWindow {
                 Layout.preferredWidth: targetWidth
                 visible: Layout.preferredWidth > 0 
 
-                // Slides open elegantly
                 Behavior on targetWidth { NumberAnimation { duration: 1400; easing.type: Easing.OutExpo } }
                 
                 Item {
@@ -445,7 +436,7 @@ PanelWindow {
                                         font.family: "JetBrains Mono"; 
                                         font.weight: Font.Black; 
                                         font.pixelSize: 13; 
-                                        color: mocha.sapphire; 
+                                        color: mocha.text; // Fixed contrast
                                         elide: Text.ElideRight; 
                                         Layout.fillWidth: true
                                     }
@@ -454,7 +445,7 @@ PanelWindow {
                                         font.family: "JetBrains Mono"; 
                                         font.weight: Font.Black; 
                                         font.pixelSize: 10; 
-                                        color: mocha.overlay1;
+                                        color: mocha.subtext0;
                                         elide: Text.ElideRight;
                                         Layout.fillWidth: true
                                     }
@@ -508,8 +499,8 @@ PanelWindow {
             id: centerBox
             anchors.centerIn: parent
             property bool isHovered: centerMouse.containsMouse
-            color: isHovered ? Qt.rgba(40/255, 40/255, 55/255, 0.90) : Qt.rgba(30/255, 30/255, 46/255, 0.85)
-            radius: 14; border.width: 1; border.color: Qt.rgba(255/255, 255/255, 255/255, isHovered ? 0.15 : 0.05)
+            color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.95) : Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
+            radius: 14; border.width: 1; border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, isHovered ? 0.15 : 0.05)
             height: 48
             
             width: centerLayout.implicitWidth + 36
@@ -591,22 +582,17 @@ PanelWindow {
             Rectangle {
                 height: 48
                 radius: 24
-                border.color: Qt.rgba(255/255, 255/255, 255/255, 0.08)
+                border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, 0.08)
                 border.width: 1
+                color: Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
                 
                 property real targetWidth: trayRepeater.count > 0 ? trayLayout.implicitWidth + 24 : 0
                 Layout.preferredWidth: targetWidth
                 Behavior on targetWidth { NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
                 
-                // Hide pill completely if tray is empty (safer explicit check via repeater count)
                 visible: targetWidth > 0
                 opacity: targetWidth > 0 ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 300 } }
-
-                gradient: Gradient {
-                    GradientStop { position: 0.0; color: Qt.rgba(30/255, 30/255, 46/255, 0.95) }
-                    GradientStop { position: 1.0; color: Qt.rgba(24/255, 24/255, 37/255, 0.85) }
-                }
 
                 RowLayout {
                     id: trayLayout
@@ -621,7 +607,6 @@ PanelWindow {
                             source: modelData.icon || ""
                             fillMode: Image.PreserveAspectFit
                             
-                            // SMALLER ICONS AND BETTER ALIGNMENT
                             sourceSize: Qt.size(18, 18)
                             Layout.preferredWidth: 18
                             Layout.preferredHeight: 18
@@ -648,7 +633,6 @@ PanelWindow {
                             Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                             Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
 
-                            // Mapped QsMenuAnchor directly to the trayIcon to grab the native DBus menu
                             QsMenuAnchor {
                                 id: menuAnchor
                                 anchor.window: barWindow
@@ -670,7 +654,7 @@ PanelWindow {
                                         if (modelData.menu) {
                                             menuAnchor.open();
                                         } else if (typeof modelData.contextMenu === "function") {
-                                            modelData.contextMenu(mouse.x, mouse.y); // Fallback for some clients
+                                            modelData.contextMenu(mouse.x, mouse.y);
                                         }
                                     }
                                 }
@@ -684,17 +668,13 @@ PanelWindow {
             Rectangle {
                 height: 48
                 radius: 24
-                border.color: Qt.rgba(255/255, 255/255, 255/255, 0.08)
+                border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, 0.08)
                 border.width: 1
+                color: Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
                 
                 property real targetWidth: sysLayout.implicitWidth + 20
                 Layout.preferredWidth: targetWidth
                 Behavior on targetWidth { NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
-
-                gradient: Gradient {
-                    GradientStop { position: 0.0; color: Qt.rgba(30/255, 30/255, 46/255, 0.95) }
-                    GradientStop { position: 1.0; color: Qt.rgba(24/255, 24/255, 37/255, 0.85) }
-                }
 
                 RowLayout {
                     id: sysLayout
@@ -706,7 +686,7 @@ PanelWindow {
                     // KB
                     Rectangle {
                         property bool isHovered: kbMouse.containsMouse
-                        color: isHovered ? Qt.rgba(255/255, 255/255, 255/255, 0.1) : Qt.rgba(255/255, 255/255, 255/255, 0.04)
+                        color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
                         radius: 17; Layout.preferredHeight: sysLayout.pillHeight;
                         
                         property real targetWidth: kbLayoutRow.implicitWidth + 24
@@ -729,9 +709,9 @@ PanelWindow {
                         id: wifiPill
                         property bool isHovered: wifiMouse.containsMouse
                         radius: 17; Layout.preferredHeight: sysLayout.pillHeight; 
-                        color: isHovered ? Qt.rgba(255/255, 255/255, 255/255, 0.1) : Qt.rgba(255/255, 255/255, 255/255, 0.04)
+                        color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
                         
-                        // Solid Mocha Blue -> Sapphire gradient child rectangle for smooth transition
+                        // Vibrant, guaranteed gradient contrast
                         Rectangle {
                             anchors.fill: parent
                             radius: 17
@@ -740,7 +720,7 @@ PanelWindow {
                             gradient: Gradient {
                                 orientation: Gradient.Horizontal
                                 GradientStop { position: 0.0; color: mocha.blue }
-                                GradientStop { position: 1.0; color: mocha.sapphire }
+                                GradientStop { position: 1.0; color: Qt.lighter(mocha.blue, 1.3) }
                             }
                         }
 
@@ -765,9 +745,9 @@ PanelWindow {
                         property bool isHovered: btMouse.containsMouse
                         radius: 17; Layout.preferredHeight: sysLayout.pillHeight
                         clip: true
-                        color: isHovered ? Qt.rgba(255/255, 255/255, 255/255, 0.1) : Qt.rgba(255/255, 255/255, 255/255, 0.04)
+                        color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
                         
-                        // Solid Mocha Mauve -> Pink gradient child rectangle for smooth transition
+                        // Vibrant, guaranteed gradient contrast
                         Rectangle {
                             anchors.fill: parent
                             radius: 17
@@ -776,7 +756,7 @@ PanelWindow {
                             gradient: Gradient {
                                 orientation: Gradient.Horizontal
                                 GradientStop { position: 0.0; color: mocha.mauve }
-                                GradientStop { position: 1.0; color: mocha.pink }
+                                GradientStop { position: 1.0; color: Qt.lighter(mocha.mauve, 1.3) }
                             }
                         }
 
@@ -795,10 +775,10 @@ PanelWindow {
                         MouseArea { id: btMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network bt"]) }
                     }
 
-                    // Volume (Dims & Strikethrough when muted)
+                    // Volume
                     Rectangle {
                         property bool isHovered: volMouse.containsMouse
-                        color: isHovered ? Qt.rgba(255/255, 255/255, 255/255, 0.1) : (barWindow.isMuted ? Qt.rgba(0, 0, 0, 0.2) : Qt.rgba(255/255, 255/255, 255/255, 0.04))
+                        color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : (barWindow.isMuted ? Qt.rgba(0, 0, 0, 0.2) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4))
                         radius: 17; Layout.preferredHeight: sysLayout.pillHeight;
                         
                         property real targetWidth: volLayoutRow.implicitWidth + 24
@@ -826,7 +806,7 @@ PanelWindow {
                     // Battery
                     Rectangle {
                         property bool isHovered: batMouse.containsMouse
-                        color: isHovered ? Qt.rgba(255/255, 255/255, 255/255, 0.1) : Qt.rgba(255/255, 255/255, 255/255, 0.04); 
+                        color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4); 
                         radius: 17; Layout.preferredHeight: sysLayout.pillHeight;
                         
                         property real targetWidth: batLayoutRow.implicitWidth + 24

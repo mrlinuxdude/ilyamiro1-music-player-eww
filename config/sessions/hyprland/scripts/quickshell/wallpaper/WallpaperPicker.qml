@@ -126,14 +126,15 @@ Item {
                 }
 
                 const originalFile = window.srcDir + "/" + cleanName
+                const thumbFile = Quickshell.env("HOME") + "/.cache/wallpaper_picker/thumbs/" + fileName 
                 
                 if (isVideo) {
                      const finalCmd = window.mpvCommand.arg(originalFile)
-                     Quickshell.execDetached(["bash", "-c", finalCmd])
+                     Quickshell.execDetached(["bash", "-c", finalCmd + " & matugen image '" + thumbFile + "' &"])
                 } else {
                      const randomTransition = window.transitions[Math.floor(Math.random() * window.transitions.length)]
                      const finalCmd = window.swwwCommand.arg(originalFile).arg(randomTransition)
-                     Quickshell.execDetached(["bash", "-c", "pkill mpvpaper; " + finalCmd])
+                     Quickshell.execDetached(["bash", "-c", "pkill mpvpaper; " + finalCmd + " & matugen image '" + thumbFile + "' &"])
                 }
                 
                 Quickshell.execDetached(["bash", "-c", "echo 'close' > /tmp/qs_widget_state"])

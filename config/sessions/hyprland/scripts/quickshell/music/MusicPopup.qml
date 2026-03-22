@@ -5,28 +5,32 @@ import QtQuick.Effects
 import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
+import "../"
 
 Item {
     id: root
 
     // Theme Colors
-    readonly property color base: "#1e1e2e"
-    readonly property color surface0: "#313244"
-    readonly property color surface1: "#45475a"
-    readonly property color surface2: "#585b70"
-    readonly property color overlay0: "#6c7086"
-    readonly property color overlay1: "#7f849c"
-    readonly property color overlay2: "#9399b2"
-    readonly property color text: "#cdd6f4"
-    readonly property color subtext0: "#a6adc8"
-    readonly property color subtext1: "#bac2de"
-    readonly property color blue: "#89b4fa"
-    readonly property color sapphire: "#74c7ec"
-    readonly property color lavender: "#b4befe"
-    readonly property color mauve: "#cba6f7"
-    readonly property color pink: "#f5c2e7"
-    readonly property color red: "#f38ba8"
-    readonly property color yellow: "#f9e2af"
+    MatugenColors { id: _theme }
+
+    // Theme Colors
+    readonly property color base: _theme.base
+    readonly property color surface0: _theme.surface0
+    readonly property color surface1: _theme.surface1
+    readonly property color surface2: _theme.surface2
+    readonly property color overlay0: _theme.overlay0
+    readonly property color overlay1: _theme.overlay1
+    readonly property color overlay2: _theme.overlay2
+    readonly property color text: _theme.text
+    readonly property color subtext0: _theme.subtext0
+    readonly property color subtext1: _theme.subtext1
+    readonly property color blue: _theme.blue
+    readonly property color sapphire: _theme.sapphire
+    readonly property color lavender: _theme.blue // Mapped to blue as Matugen template lacks lavender
+    readonly property color mauve: _theme.mauve
+    readonly property color pink: _theme.pink
+    readonly property color red: _theme.red
+    readonly property color yellow: _theme.yellow
 
     // Data State Properties
     property var musicData: {
@@ -553,7 +557,6 @@ Item {
                             Text {
                                 text: root.musicData.title
                                 
-                                // FIXED TEXT COLOR CALL
                                 color: root.dynamicTextColor
                                 
                                 font.family: "JetBrains Mono"
@@ -567,7 +570,7 @@ Item {
                             }
                             Text {
                                 text: root.musicData.artist ? "BY " + root.musicData.artist : ""
-                                color: root.pink
+                                color: root.subtext0 // Better matugen match
                                 font.family: "JetBrains Mono"
                                 font.pixelSize: 14
                                 font.bold: true
@@ -591,7 +594,7 @@ Item {
                                 }
                                 Text {
                                     text: "VIA " + (root.musicData.source || "Offline")
-                                    color: root.yellow
+                                    color: root.overlay2 // Better matugen match
                                     font.family: "JetBrains Mono"
                                     font.pixelSize: 12
                                     font.bold: true
@@ -910,10 +913,15 @@ Item {
                                     property real trackPulse: 0.0
                                     property real ringPulse: 0.0
                                     property real flashFade: 0.0
+                                    property bool hasFired: false
 
-                                    onHitPulseChanged: {
-                                        // Trigger all pulses EXACTLY as the lightning passes through the dead center
-                                        if (hitPulse > 0.8 && trackPulseAnim.running === false) {
+                                    onDistChanged: {
+                                        // Reset the fire lock when the animation sweeps past or starts over
+                                        if (dist <= 0.05) {
+                                            hasFired = false;
+                                        } else if (dist > 0.4 && !hasFired) {
+                                            // Trigger strictly once per bolt passing over
+                                            hasFired = true;
                                             trackPulseAnim.restart();
                                             ringPulseAnim.restart();
                                             flashFadeAnim.restart();
@@ -1049,8 +1057,8 @@ Item {
                                                             gradient: Gradient {
                                                                 orientation: Gradient.Vertical
                                                                 GradientStop { position: 0.0; color: root.mauve }
-                                                                GradientStop { position: 0.5; color: root.pink }
-                                                                GradientStop { position: 1.0; color: root.sapphire }
+                                                                GradientStop { position: 0.5; color: root.blue }
+                                                                GradientStop { position: 1.0; color: "transparent" }
                                                             }
                                                         }
 
@@ -1064,59 +1072,59 @@ Item {
                                                             gradient: Gradient {
                                                                 orientation: Gradient.Vertical
                                                                 GradientStop { position: 0.0; color: "transparent" }
-                                                                GradientStop { position: 0.2; color: root.pink }
-                                                                GradientStop { position: 0.5; color: "#ffffff" } // Bright glowing center
+                                                                GradientStop { position: 0.2; color: root.blue }
+                                                                GradientStop { position: 0.5; color: root.text } // Theme integrated bright center
                                                                 GradientStop { position: 0.8; color: root.mauve }
                                                                 GradientStop { position: 1.0; color: "transparent" }
                                                             }
                                                             
                                                             layer.enabled: true
                                                             layer.effect: MultiEffect {
-                                                                shadowEnabled: true; shadowColor: root.pink; shadowBlur: 1.0; shadowOpacity: 1.0
+                                                                shadowEnabled: true; shadowColor: root.blue; shadowBlur: 1.0; shadowOpacity: 1.0
                                                             }
                                                         }
                                                     }
                                                 }
                                             }
 
-                                            handle: Rectangle {
-                                                x: eqSlider.leftPadding + (eqSlider.availableWidth - width) / 2
-                                                y: eqSlider.topPadding + eqSlider.visualPosition * (eqSlider.availableHeight - height)
-                                                implicitWidth: 18
-                                                implicitHeight: 18
-                                                width: 18; height: 18
-                                                radius: 9; color: root.text
+                                        handle: Rectangle {
+                                            x: eqSlider.leftPadding + (eqSlider.availableWidth - width) / 2
+                                            y: eqSlider.topPadding + eqSlider.visualPosition * (eqSlider.availableHeight - height)
+                                            implicitWidth: 18
+                                            implicitHeight: 18
+                                            width: 18; height: 18
+                                            radius: 9; color: root.text
 
-                                                property var catColors: [root.mauve, root.pink, root.lavender, root.mauve, root.blue]
+                                            property var catColors: [root.mauve, root.pink, root.lavender, root.mauve, root.blue]
 
-                                                // Core glow flare that cleanly fades out matching the canvas
-                                                Rectangle {
-                                                    anchors.centerIn: parent
-                                                    width: parent.width + 36 * sliderDelegate.hitPulse // Bigger bloom
-                                                    height: width
-                                                    radius: width / 2
-                                                    color: parent.catColors[index % parent.catColors.length]
-                                                    opacity: sliderDelegate.hitPulse * (1.0 - root.eqLightningFade)
-                                                    layer.enabled: true
-                                                    layer.effect: MultiEffect { blurEnabled: true; blurMax: 32; blur: 1.0 }
-                                                }
-
-                                                // Pop the handle itself slightly as the beam passes
-                                                scale: 1.0 + (sliderDelegate.hitPulse * 0.4 * (1.0 - root.eqLightningFade))
+                                            // Core glow flare that cleanly fades out matching the canvas
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                width: parent.width + 36 * sliderDelegate.hitPulse // Bigger bloom
+                                                height: width
+                                                radius: width / 2
+                                                color: parent.catColors[index % parent.catColors.length]
+                                                opacity: sliderDelegate.hitPulse * (1.0 - root.eqLightningFade)
+                                                layer.enabled: true
+                                                layer.effect: MultiEffect { blurEnabled: true; blurMax: 32; blur: 1.0 }
                                             }
+
+                                            // Pop the handle itself slightly as the beam passes
+                                            scale: 1.0 + (sliderDelegate.hitPulse * 0.4 * (1.0 - root.eqLightningFade))
                                         }
-                                        Text {
-                                            text: modelData.lbl
-                                            color: root.overlay1
-                                            font.family: "JetBrains Mono"
-                                            font.pixelSize: 10
-                                            font.bold: true
-                                            Layout.alignment: Qt.AlignHCenter
-                                        }
+                                    }
+                                    Text {
+                                        text: modelData.lbl
+                                        color: root.overlay1
+                                        font.family: "JetBrains Mono"
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        Layout.alignment: Qt.AlignHCenter
                                     }
                                 }
                             }
                         }
+                    }
 
                         // --- THE FLUID CANVAS LIGHTNING (Optimized for Realism and multiple waves) ---
                         Canvas {

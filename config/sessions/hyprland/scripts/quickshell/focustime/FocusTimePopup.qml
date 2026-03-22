@@ -5,31 +5,32 @@ import QtQuick.Effects
 import QtCore
 import Quickshell
 import Quickshell.Io
+import "../"
 
 Item {
     id: window
-
+   // -------------------------------------------------------------------------
+    // COLORS (Dynamic Matugen Palette)
     // -------------------------------------------------------------------------
-    // COLORS (Catppuccin Mocha)
-    // -------------------------------------------------------------------------
-    readonly property color base: "#1e1e2e"
-    readonly property color mantle: "#181825"
-    readonly property color crust: "#11111b"
-    readonly property color text: "#cdd6f4"
-    readonly property color subtext0: "#a6adc8"
-    readonly property color overlay0: "#6c7086"
-    readonly property color surface0: "#313244"
-    readonly property color surface1: "#45475a"
-    readonly property color surface2: "#585b70"
+    MatugenColors { id: _theme }
+    readonly property color base: _theme.base
+    readonly property color mantle: _theme.mantle
+    readonly property color crust: _theme.crust
+    readonly property color text: _theme.text
+    readonly property color subtext0: _theme.subtext0
+    readonly property color overlay0: _theme.overlay0
+    readonly property color surface0: _theme.surface0
+    readonly property color surface1: _theme.surface1
+    readonly property color surface2: _theme.surface2
     
-    readonly property color mauve: "#cba6f7"
-    readonly property color pink: "#f5c2e7"
-    readonly property color red: "#f38ba8"
-    readonly property color peach: "#fab387"
-    readonly property color yellow: "#f9e2af"
-    readonly property color green: "#a6e3a1"
-    readonly property color sapphire: "#74c7ec"
-    readonly property color blue: "#89b4fa"
+    readonly property color mauve: _theme.mauve
+    readonly property color pink: _theme.pink
+    readonly property color red: _theme.red
+    readonly property color peach: _theme.peach
+    readonly property color yellow: _theme.yellow
+    readonly property color green: _theme.green
+    readonly property color sapphire: _theme.sapphire
+    readonly property color blue: _theme.blue
 
     readonly property var monthNames: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 

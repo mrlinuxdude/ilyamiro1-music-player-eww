@@ -3,26 +3,27 @@ import QtQuick.Layouts
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
+import "../"
 
 Item {
     id: window
     
     // -------------------------------------------------------------------------
-    // COLORS (Catppuccin Mocha)
+    // COLORS (Dynamic Matugen Palette)
     // -------------------------------------------------------------------------
-    readonly property color base: "#1e1e2e"
-    readonly property color mantle: "#181825"
-    readonly property color crust: "#11111b"
-    readonly property color text: "#cdd6f4"
-    readonly property color subtext0: "#a6adc8"
-    readonly property color overlay0: "#6c7086"
-    readonly property color surface0: "#313244"
-    readonly property color surface1: "#45475a"
-    readonly property color surface2: "#585b70"
+    MatugenColors { id: _theme }
+    readonly property color base: _theme.base
+    readonly property color mantle: _theme.mantle
+    readonly property color crust: _theme.crust
+    readonly property color text: _theme.text
+    readonly property color subtext0: _theme.subtext0
+    readonly property color overlay0: _theme.overlay0
+    readonly property color surface0: _theme.surface0
+    readonly property color surface1: _theme.surface1
+    readonly property color surface2: _theme.surface2
     
-    readonly property color mauve: "#cba6f7"
-    readonly property color blue: "#89b4fa"
-
+    readonly property color mauve: _theme.mauve
+    readonly property color blue: _theme.blue
     // -------------------------------------------------------------------------
     // STATE & MATH
     // -------------------------------------------------------------------------

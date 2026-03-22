@@ -1,15 +1,18 @@
 import QtQuick
 import QtQuick.Effects
+import "../"
 
 Item {
     id: root
+
+    MatugenColors {id: _theme}
 
     // Master Container
     Rectangle {
         id: windowContent
         anchors.fill: parent
         radius: 12
-        color: "#1e1e2e" // Catppuccin Mocha: Base
+        color: _theme.base // Catppuccin Mocha: Base
         clip: true
 
         // ---------------------------------------------------------------------
@@ -17,20 +20,19 @@ Item {
         // ---------------------------------------------------------------------
         
         // 5. Slow Color Temperature Drift
-        property color currentBasePurple: "#cba6f7"
+        property color currentBasePurple: _theme.mauve
         SequentialAnimation on currentBasePurple {
             loops: Animation.Infinite; running: true
-            ColorAnimation { to: "#dca6eb"; duration: 15000; easing.type: Easing.InOutSine } // Warmer
-            ColorAnimation { to: "#cba6f7"; duration: 15000; easing.type: Easing.InOutSine }
+            ColorAnimation { to: _theme.pink; duration: 15000; easing.type: Easing.InOutSine } // Warmer
+            ColorAnimation { to: _theme.mauve; duration: 15000; easing.type: Easing.InOutSine }
         }
 
-        property color currentAccentLavender: "#b4befe"
+        property color currentAccentLavender: _theme.blue
         SequentialAnimation on currentAccentLavender {
             loops: Animation.Infinite; running: true
-            ColorAnimation { to: "#b4d0fe"; duration: 15000; easing.type: Easing.InOutSine } // Cooler
-            ColorAnimation { to: "#b4befe"; duration: 15000; easing.type: Easing.InOutSine }
+            ColorAnimation { to: _theme.sapphire; duration: 15000; easing.type: Easing.InOutSine } // Cooler
+            ColorAnimation { to: _theme.blue; duration: 15000; easing.type: Easing.InOutSine }
         }
-
         // Animation States
         property real calmState: 0.0 
         property real popShockwave: 0.0 

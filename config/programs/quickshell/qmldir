@@ -1,3 +1,0 @@
-module QuickshellConfig
-singleton Style Style.qml
-singleton DataSource DataSource.qml
