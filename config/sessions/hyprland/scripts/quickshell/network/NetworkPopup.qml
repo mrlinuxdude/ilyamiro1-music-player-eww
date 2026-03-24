@@ -8,6 +8,18 @@ import "../"
 
 Item {
     id: window
+    
+    // 1. Give the root window focus so it actively listens for keystrokes
+    focus: true
+
+    // 2. Add the Shortcut component to listen specifically for the Tab key
+    Shortcut {
+        sequence: "Tab"
+        onActivated: {
+            window.playSfx("switch.wav");
+            window.activeMode = window.activeMode === "wifi" ? "bt" : "wifi";
+        }
+    }
 
     // -------------------------------------------------------------------------
     // INSTANT CACHING ENGINE & SHARED STATE
@@ -19,8 +31,8 @@ Item {
         property string lastBtJson: ""
     }
 
+    // ... the rest of your file remains exactly the same from here down ...
     property bool ignoreNextModeFileUpdate: false
-
     Process {
         id: modeReader
         command: ["bash", "-c", "cat /tmp/qs_network_mode 2>/dev/null"]
@@ -86,8 +98,13 @@ Item {
 
     readonly property string scriptsDir: Quickshell.env("HOME") + "/.config/hypr/scripts/quickshell/network"
     
+    // Abstracted accents. Dialed down from 1.4 to 1.15 to prevent the RGB channels 
+    // from blowing out to pure #FFFFFF while still staying distinct and bright.
+    readonly property color wifiAccent: Qt.lighter(window.sapphire, 1.15) 
+    readonly property color btAccent: window.mauve
+
     property string activeMode: "bt"
-    readonly property color activeColor: activeMode === "wifi" ? window.sapphire : window.mauve
+    readonly property color activeColor: activeMode === "wifi" ? window.wifiAccent : window.btAccent
     // Calculate a subtle, pure one-color gradient rather than mixing two distinct palette colors
     readonly property color activeGradientSecondary: Qt.darker(window.activeColor, 1.25)
 
@@ -1638,8 +1655,8 @@ Item {
                             Behavior on opacity { NumberAnimation { duration: 300 } }
                             gradient: Gradient {
                                 orientation: Gradient.Horizontal
-                                GradientStop { position: 0.0; color: Qt.lighter(window.sapphire, 1.15) }
-                                GradientStop { position: 1.0; color: window.sapphire }
+                                GradientStop { position: 0.0; color: Qt.lighter(window.wifiAccent, 1.15) }
+                                GradientStop { position: 1.0; color: window.wifiAccent }
                             }
                         }
 
@@ -1675,8 +1692,8 @@ Item {
                             Behavior on opacity { NumberAnimation { duration: 300 } }
                             gradient: Gradient {
                                 orientation: Gradient.Horizontal
-                                GradientStop { position: 0.0; color: Qt.lighter(window.mauve, 1.15) }
-                                GradientStop { position: 1.0; color: window.mauve }
+                                GradientStop { position: 0.0; color: Qt.lighter(window.btAccent, 1.15) }
+                                GradientStop { position: 1.0; color: window.btAccent }
                             }
                         }
 

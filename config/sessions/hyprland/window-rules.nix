@@ -7,25 +7,18 @@
     # Layer rules (OSD / overlays)
     # ─────────────────────────────
     layerrule = [
-      "noanim, ^(volume_osd)$"
-      "noanim, ^(brightness_osd)$"
-      "noanim, ^(usb_popup)$"
-      "noanim, hyprpicker"
+	"noanim, ^(volume_osd)$"
+	"noanim, ^(brightness_osd)$"
+	"noanim, hyprpicker"
+	"noanim, qsdock"
+	"blur, ext-session-lock"
+	"ignorealpha 0.2, ext-session-lock"
     ];
 
     # ─────────────────────────────
     # Window rules
     # ─────────────────────────────
     windowrulev2 = [
-      # ───────── music_vis ─────────
-      "float, class:^(music_vis)$"
-      "pin, class:^(music_vis)$"
-      "noinitialfocus, class:^(music_vis)$"
-      "size 700 350, class:^(music_vis)$"
-      "move 12 720, class:^(music_vis)$"
-      "noborder, class:^(music_vis)$"
-      "noshadow, class:^(music_vis)$"
-
       # ───────── CS2 ─────────
       "immediate, class:^(cs2)$"
       "keepaspectratio, class:^(cs2)$"

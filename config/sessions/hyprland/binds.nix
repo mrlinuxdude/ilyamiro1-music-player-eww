@@ -36,7 +36,7 @@
       bindel = [
          ", xf86audiolowervolume, exec, swayosd-client --output-volume lower"
 	 ", xf86audioraisevolume, exec, swayosd-client --output-volume raise"
-	 "$mainMod, L, exec, hyprlock"	
+	 "$mainMod, L, exec, quickshell -p ~/.config/hypr/scripts/quickshell/Lock.qml"	
       ];
       bind =
       [	

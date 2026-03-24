@@ -85,6 +85,12 @@ FloatingWindow {
                 anchors.fill: parent
                 focus: true
                 
+                // NEW: Key bubbling catch-all. This triggers ONLY if the child widget doesn't accept the escape event.
+                Keys.onEscapePressed: {
+                    Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "close"])
+                    event.accepted = true
+                }
+
                 onCurrentItemChanged: {
                     if (currentItem) currentItem.forceActiveFocus();
                 }
@@ -105,11 +111,6 @@ FloatingWindow {
                 }
             }
         }
-    }
-
-    Shortcut {
-        sequence: "Escape"
-        onActivated: Quickshell.execDetached(["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/qs_manager.sh", "close"])
     }
 
     function switchWidget(newWidget, arg) {

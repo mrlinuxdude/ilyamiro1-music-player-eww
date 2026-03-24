@@ -395,6 +395,23 @@ Item {
     Shortcut { sequence: "Right"; onActivated: changeDay(1) }
     Shortcut { sequence: "Home"; onActivated: changeDay(-7) }
     Shortcut { sequence: "End"; onActivated: changeDay(7) }
+    
+    // Escape key handling: Only intercepts if we are in a sub-view
+    Shortcut { 
+        sequence: "Escape"
+        context: Qt.ApplicationShortcut
+        enabled: window.selectedAppClass !== "" || window.isWeekView
+        onActivated: {
+            if (window.selectedAppClass !== "") {
+                window.selectedAppClass = ""; 
+                window.selectedAppName = ""; 
+                window.selectedAppIcon = ""; 
+                window.requestDataUpdate(); 
+            } else if (window.isWeekView) {
+                window.isWeekView = false;
+            }
+        }
+    }
 
     // -------------------------------------------------------------------------
     // UI LAYOUT
@@ -518,11 +535,11 @@ Item {
                         Text {
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
-                            font.family: "Inter, Roboto, sans-serif"
+                            font.family: "JetBrains Mono"
                             font.weight: Font.DemiBold
                             font.pixelSize: 18
                             color: window.text
-                            text: window.isWeekView ? "Week Overview" : (window.selectedAppClass !== "" ? `${window.selectedAppName} - ${window.getFancyDate(window.activeDate)}` : window.getFancyDate(window.activeDate))
+                            text: window.isWeekView ? (window.weekRangeStr !== "" ? window.weekRangeStr : "Week Overview") : (window.selectedAppClass !== "" ? `${window.selectedAppName} - ${window.getFancyDate(window.activeDate)}` : window.getFancyDate(window.activeDate))
                         }
 
                         Item { Layout.fillWidth: true } // Right Spacer
@@ -575,7 +592,7 @@ Item {
                                 spacing: 2
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    font.family: "Inter, Roboto, sans-serif"
+                                    font.family: "JetBrains Mono"
                                     font.weight: Font.DemiBold
                                     font.pixelSize: 14
                                     color: window.subtext0
@@ -583,7 +600,7 @@ Item {
                                 }
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    font.family: "Inter, Roboto, sans-serif"
+                                    font.family: "JetBrains Mono"
                                     font.weight: Font.Bold
                                     font.pixelSize: 20
                                     color: window.text
@@ -591,7 +608,7 @@ Item {
                                 }
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    font.family: "Inter, Roboto, sans-serif"
+                                    font.family: "JetBrains Mono"
                                     font.weight: Font.Medium
                                     font.pixelSize: 12
                                     color: window.overlay0
@@ -616,7 +633,7 @@ Item {
                                 spacing: 0
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    font.family: "Inter, Roboto, sans-serif"
+                                    font.family: "JetBrains Mono"
                                     font.weight: Font.Black
                                     font.pixelSize: 36
                                     color: window.text
@@ -646,7 +663,7 @@ Item {
                                     visible: !(window.totalSeconds === 0 && window.yesterdaySeconds === 0) && window.totalSeconds !== window.yesterdaySeconds
                                     
                                     Text {
-                                        font.family: "Inter, Roboto, sans-serif"
+                                        font.family: "JetBrains Mono"
                                         font.weight: Font.Bold
                                         font.pixelSize: 16
                                         color: {
@@ -657,7 +674,7 @@ Item {
                                     }
                                     
                                     Text {
-                                        font.family: "Inter, Roboto, sans-serif"
+                                        font.family: "JetBrains Mono"
                                         font.weight: Font.Bold
                                         font.pixelSize: 16
                                         color: {
@@ -674,7 +691,7 @@ Item {
                                 // No Data / Same fallback
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    font.family: "Inter, Roboto, sans-serif"
+                                    font.family: "JetBrains Mono"
                                     font.weight: Font.DemiBold
                                     font.pixelSize: 15
                                     color: window.overlay0
@@ -685,7 +702,7 @@ Item {
                                 // Subtext
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    font.family: "Inter, Roboto, sans-serif"
+                                    font.family: "JetBrains Mono"
                                     font.weight: Font.DemiBold
                                     font.pixelSize: 14
                                     color: window.subtext0
@@ -770,7 +787,7 @@ Item {
                                             id: dayLbl
                                             anchors.bottom: parent.bottom
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            font.family: "Inter, Roboto, sans-serif"
+                                            font.family: "JetBrains Mono"
                                             font.weight: Font.DemiBold
                                             font.pixelSize: 12
                                             color: model.isTarget ? window.text : window.overlay0
@@ -799,7 +816,7 @@ Item {
 
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    font.family: "Inter, Roboto, sans-serif"
+                                    font.family: "JetBrains Mono"
                                     font.weight: Font.DemiBold
                                     font.pixelSize: 14
                                     color: window.text
@@ -929,7 +946,7 @@ Item {
 
                                         Text {
                                             Layout.fillWidth: true
-                                            font.family: "Inter, Roboto, sans-serif"
+                                            font.family: "JetBrains Mono"
                                             font.weight: Font.DemiBold
                                             font.pixelSize: 15
                                             color: window.text
@@ -937,7 +954,7 @@ Item {
                                             elide: Text.ElideRight
                                         }
                                         Text {
-                                            font.family: "Inter, Roboto, sans-serif"
+                                            font.family: "JetBrains Mono"
                                             font.weight: Font.Medium
                                             font.pixelSize: 14
                                             color: window.subtext0
@@ -947,12 +964,12 @@ Item {
 
                                     Item {
                                         Layout.fillWidth: true
-                                        height: 6
-                                        Rectangle { anchors.fill: parent; radius: 3; color: window.crust }
+                                        height: 10
+                                        Rectangle { anchors.fill: parent; radius: 5; color: window.crust }
                                         Rectangle {
                                             height: parent.height
-                                            width: Math.max(6, parent.width * (model.percent / 100.0))
-                                            radius: 3
+                                            width: Math.max(10, parent.width * (model.percent / 100.0))
+                                            radius: 5
                                             gradient: Gradient {
                                                 orientation: Gradient.Horizontal
                                                 GradientStop { position: 0.0; color: window.mauve }
@@ -974,7 +991,7 @@ Item {
 
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                font.family: "Inter, Roboto, sans-serif"
+                                font.family: "JetBrains Mono"
                                 font.weight: Font.DemiBold
                                 font.pixelSize: 14
                                 color: window.text
@@ -1015,15 +1032,15 @@ Item {
                             // X-Axis Labels 24h
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { font.family: "Inter, Roboto, sans-serif"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "00:00" }
+                                Text { font.family: "JetBrains Mono"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "00:00" }
                                 Item { Layout.fillWidth: true }
-                                Text { font.family: "Inter, Roboto, sans-serif"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "06:00" }
+                                Text { font.family: "JetBrains Mono"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "06:00" }
                                 Item { Layout.fillWidth: true }
-                                Text { font.family: "Inter, Roboto, sans-serif"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "12:00" }
+                                Text { font.family: "JetBrains Mono"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "12:00" }
                                 Item { Layout.fillWidth: true }
-                                Text { font.family: "Inter, Roboto, sans-serif"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "18:00" }
+                                Text { font.family: "JetBrains Mono"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "18:00" }
                                 Item { Layout.fillWidth: true }
-                                Text { font.family: "Inter, Roboto, sans-serif"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "23:00" }
+                                Text { font.family: "JetBrains Mono"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "23:00" }
                             }
                         }
                     }
@@ -1042,7 +1059,7 @@ Item {
                     // Week Heatmap Card
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 200
+                        Layout.preferredHeight: 260 // Adjusted to fit 7 rows + spacing cleanly
                         radius: 20
                         color: window.base
                         border.color: Qt.alpha(window.surface1, 0.3)
@@ -1060,16 +1077,6 @@ Item {
                                 Layout.preferredWidth: 400
                                 spacing: 4
 
-                                Text {
-                                    text: window.weekRangeStr
-                                    font.family: "Inter, Roboto, sans-serif"
-                                    font.weight: Font.DemiBold
-                                    font.pixelSize: 14
-                                    color: window.text
-                                    Layout.alignment: Qt.AlignHCenter
-                                    Layout.bottomMargin: 8
-                                }
-
                                 Repeater {
                                     model: 7
                                     delegate: RowLayout {
@@ -1080,7 +1087,7 @@ Item {
 
                                         Text {
                                             text: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][dayIndex]
-                                            font.family: "Inter, Roboto, sans-serif"
+                                            font.family: "JetBrains Mono"
                                             font.weight: Font.Normal
                                             font.pixelSize: 12
                                             color: window.subtext0
@@ -1092,7 +1099,7 @@ Item {
                                         Rectangle {
                                             Layout.fillWidth: true
                                             Layout.fillHeight: true
-                                            radius: 4
+                                            radius: 10
                                             color: "transparent"
                                             clip: true
                                             
@@ -1129,15 +1136,15 @@ Item {
                                     Layout.fillWidth: true
                                     Layout.topMargin: 4
                                     Item { Layout.preferredWidth: 75 } // Label Spacer
-                                    Text { font.family: "Inter, Roboto, sans-serif"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "00:00"; Layout.alignment: Qt.AlignLeft }
+                                    Text { font.family: "JetBrains Mono"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "00:00"; Layout.alignment: Qt.AlignLeft }
                                     Item { Layout.fillWidth: true }
-                                    Text { font.family: "Inter, Roboto, sans-serif"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "06:00"; Layout.alignment: Qt.AlignHCenter }
+                                    Text { font.family: "JetBrains Mono"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "06:00"; Layout.alignment: Qt.AlignHCenter }
                                     Item { Layout.fillWidth: true }
-                                    Text { font.family: "Inter, Roboto, sans-serif"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "12:00"; Layout.alignment: Qt.AlignHCenter }
+                                    Text { font.family: "JetBrains Mono"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "12:00"; Layout.alignment: Qt.AlignHCenter }
                                     Item { Layout.fillWidth: true }
-                                    Text { font.family: "Inter, Roboto, sans-serif"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "18:00"; Layout.alignment: Qt.AlignHCenter }
+                                    Text { font.family: "JetBrains Mono"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "18:00"; Layout.alignment: Qt.AlignHCenter }
                                     Item { Layout.fillWidth: true }
-                                    Text { font.family: "Inter, Roboto, sans-serif"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "23:00"; Layout.alignment: Qt.AlignRight }
+                                    Text { font.family: "JetBrains Mono"; font.weight: Font.Medium; font.pixelSize: 11; color: window.overlay0; text: "23:00"; Layout.alignment: Qt.AlignRight }
                                 }
                             }
 
@@ -1160,7 +1167,7 @@ Item {
                                         spacing: 4
                                         Text { 
                                             Layout.alignment: Qt.AlignHCenter
-                                            font.family: "Inter, Roboto, sans-serif"
+                                            font.family: "JetBrains Mono"
                                             font.weight: Font.Medium
                                             font.pixelSize: 12
                                             color: window.subtext0
@@ -1168,7 +1175,7 @@ Item {
                                         }
                                         Text { 
                                             Layout.alignment: Qt.AlignHCenter
-                                            font.family: "Inter, Roboto, sans-serif"
+                                            font.family: "JetBrains Mono"
                                             font.weight: Font.Bold
                                             font.pixelSize: 18
                                             color: window.text
@@ -1189,7 +1196,7 @@ Item {
                                         spacing: 4
                                         Text { 
                                             Layout.alignment: Qt.AlignHCenter
-                                            font.family: "Inter, Roboto, sans-serif"
+                                            font.family: "JetBrains Mono"
                                             font.weight: Font.Medium
                                             font.pixelSize: 12
                                             color: window.subtext0
@@ -1197,7 +1204,7 @@ Item {
                                         }
                                         Text { 
                                             Layout.alignment: Qt.AlignHCenter
-                                            font.family: "Inter, Roboto, sans-serif"
+                                            font.family: "JetBrains Mono"
                                             font.weight: Font.Bold
                                             font.pixelSize: 14
                                             color: window.text
@@ -1256,6 +1263,14 @@ Item {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        window.selectedAppClass = model.appClass;
+                                        window.selectedAppName = model.name;
+                                        window.selectedAppIcon = model.icon;
+                                        window.appDate = new Date(); 
+                                        window.isWeekView = false; // Bypasses the week view when clicking back later
+                                        window.requestDataUpdate();
+                                    }
                                 }
 
                                 ColumnLayout {
@@ -1282,7 +1297,7 @@ Item {
 
                                         Text {
                                             Layout.fillWidth: true
-                                            font.family: "Inter, Roboto, sans-serif"
+                                            font.family: "JetBrains Mono"
                                             font.weight: Font.DemiBold
                                             font.pixelSize: 15
                                             color: window.text
@@ -1290,7 +1305,7 @@ Item {
                                             elide: Text.ElideRight
                                         }
                                         Text {
-                                            font.family: "Inter, Roboto, sans-serif"
+                                            font.family: "JetBrains Mono"
                                             font.weight: Font.Medium
                                             font.pixelSize: 14
                                             color: window.subtext0
@@ -1300,12 +1315,12 @@ Item {
 
                                     Item {
                                         Layout.fillWidth: true
-                                        height: 6
-                                        Rectangle { anchors.fill: parent; radius: 3; color: window.crust }
+                                        height: 10
+                                        Rectangle { anchors.fill: parent; radius: 5; color: window.crust }
                                         Rectangle {
                                             height: parent.height
-                                            width: Math.max(6, parent.width * (model.percent / 100.0))
-                                            radius: 3
+                                            width: Math.max(10, parent.width * (model.percent / 100.0))
+                                            radius: 5
                                             gradient: Gradient {
                                                 orientation: Gradient.Horizontal
                                                 GradientStop { position: 0.0; color: window.mauve }

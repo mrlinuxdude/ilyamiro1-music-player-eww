@@ -62,7 +62,7 @@ Item {
     property real catppuccinFlowOffset: 0
     NumberAnimation on catppuccinFlowOffset {
         from: 0; to: 1.0
-        duration: 3000
+        duration: 8000 // Slowed down significantly for a graceful, constant flow
         loops: Animation.Infinite
         running: true
     }
@@ -680,7 +680,7 @@ Item {
                                         }
                                     }
 
-                                    // Masked Gradient Fill
+                                    // Masked Gradient Fill (Completely redesigned for smooth, light, synergistic palette)
                                     Item {
                                         width: progBar.handle.x - progBar.leftPadding + (progBar.handle.width / 2)
                                         height: parent.height
@@ -703,16 +703,18 @@ Item {
                                         Rectangle {
                                             width: 2000
                                             height: parent.height
+                                            // Sliding the gradient perfectly by exactly half its width (1000px)
                                             x: -(root.catppuccinFlowOffset * 1000) 
                                             gradient: Gradient {
                                                 orientation: Gradient.Horizontal
-                                                GradientStop { position: 0.0; color: root.mauve }
-                                                GradientStop { position: 0.166; color: root.blue }
-                                                GradientStop { position: 0.333; color: root.pink }
-                                                GradientStop { position: 0.5; color: root.mauve }
-                                                GradientStop { position: 0.666; color: root.blue }
-                                                GradientStop { position: 0.833; color: root.pink }
-                                                GradientStop { position: 1.0; color: root.mauve }
+                                                // Mathematically precise loops with lighter, cooler colors & theme change support
+                                                GradientStop { position: 0.0000; color: Qt.lighter(root.blue, 1.2); Behavior on color { ColorAnimation { duration: 800 } } }
+                                                GradientStop { position: 0.1666; color: Qt.lighter(root.sapphire, 1.15); Behavior on color { ColorAnimation { duration: 800 } } }
+                                                GradientStop { position: 0.3333; color: Qt.lighter(root.mauve, 1.15); Behavior on color { ColorAnimation { duration: 800 } } }
+                                                GradientStop { position: 0.5000; color: Qt.lighter(root.blue, 1.2); Behavior on color { ColorAnimation { duration: 800 } } }
+                                                GradientStop { position: 0.6666; color: Qt.lighter(root.sapphire, 1.15); Behavior on color { ColorAnimation { duration: 800 } } }
+                                                GradientStop { position: 0.8333; color: Qt.lighter(root.mauve, 1.15); Behavior on color { ColorAnimation { duration: 800 } } }
+                                                GradientStop { position: 1.0000; color: Qt.lighter(root.blue, 1.2); Behavior on color { ColorAnimation { duration: 800 } } }
                                             }
                                         }
                                     }

@@ -257,14 +257,14 @@ Item {
             clip: true
 
             // =======================================================
-            // AMBIENT WIDGET COLOR BLOBS (Integrated from Battery)
+            // AMBIENT WIDGET COLOR BLOBS (Spread Out)
             // =======================================================
             // Primary Weather Blob
             Rectangle {
                 width: parent.width * 0.5; height: width; radius: width / 2
-                x: (parent.width / 2 - width / 2) + Math.cos(window.globalOrbitAngle * 2) * 150
-                y: (parent.height / 2 - height / 2) + Math.sin(window.globalOrbitAngle * 2) * 100
-                opacity: 0.04
+                x: (parent.width * 0.75 - width / 2) + Math.cos(window.globalOrbitAngle * 1.5) * 350
+                y: (parent.height * 0.3 - height / 2) + Math.sin(window.globalOrbitAngle * 1.5) * 200
+                opacity: 0.025
                 color: window.activeWeatherHex
                 Behavior on color { ColorAnimation { duration: 1000 } }
             }
@@ -272,9 +272,9 @@ Item {
             // Time of Day Blob
             Rectangle {
                 width: parent.width * 0.6; height: width; radius: width / 2
-                x: (parent.width / 2 - width / 2) + Math.sin(window.globalOrbitAngle * 1.5) * -150
-                y: (parent.height / 2 - height / 2) + Math.cos(window.globalOrbitAngle * 1.5) * -100
-                opacity: 0.03
+                x: (parent.width * 0.25 - width / 2) + Math.sin(window.globalOrbitAngle * 1.2) * -300
+                y: (parent.height * 0.7 - height / 2) + Math.cos(window.globalOrbitAngle * 1.2) * -250
+                opacity: 0.02
                 color: window.timeColor
                 Behavior on color { ColorAnimation { duration: 1000 } }
             }
@@ -282,9 +282,9 @@ Item {
             // Time Accent Blob
             Rectangle {
                 width: parent.width * 0.45; height: width; radius: width / 2
-                x: (parent.width / 2 - width / 2) + Math.cos(window.globalOrbitAngle * -1.8) * 120
-                y: (parent.height / 2 - height / 2) + Math.sin(window.globalOrbitAngle * -1.8) * -120
-                opacity: 0.02
+                x: (parent.width * 0.5 - width / 2) + Math.cos(window.globalOrbitAngle * -1.8) * 400
+                y: (parent.height * 0.5 - height / 2) + Math.sin(window.globalOrbitAngle * -1.8) * -350
+                opacity: 0.015
                 color: window.timeAccent
                 Behavior on color { ColorAnimation { duration: 1000 } }
             }
@@ -421,15 +421,15 @@ Item {
                         z: Math.sin(rad) * 100 
                         
                         scale: isHighlighted ? 1.4 : (isToday ? (0.95 + 0.20 * Math.sin(rad)) : (0.90 + 0.25 * Math.sin(rad)))
-                        opacity: isHighlighted ? 1.0 : (isToday ? (0.35 + 0.45 * ((Math.sin(rad) + 1) / 2)) : (0.4 + 0.6 * ((Math.sin(rad) + 1) / 2)))
+                        opacity: isHighlighted ? 1.0 : (isToday ? (0.7 + 0.3 * ((Math.sin(rad) + 1) / 2)) : (0.65 + 0.35 * ((Math.sin(rad) + 1) / 2)))
 
                         width: 56; height: 95
                         
                         Rectangle {
                             anchors.fill: parent
                             radius: 28
-                            color: isHighlighted ? window.activeWeatherHex : (hrMa.containsMouse ? Qt.alpha(window.surface2, 0.6) : Qt.alpha(window.surface0, 0.3))
-                            border.color: isHighlighted ? "transparent" : (hrMa.containsMouse ? window.activeWeatherHex : Qt.alpha(window.surface1, 0.5))
+                            color: isHighlighted ? window.activeWeatherHex : (hrMa.containsMouse ? window.surface2 : window.surface0)
+                            border.color: isHighlighted ? "transparent" : (hrMa.containsMouse ? window.activeWeatherHex : window.surface1)
                             border.width: 1
                             
                             Behavior on color { ColorAnimation { duration: 200 } }

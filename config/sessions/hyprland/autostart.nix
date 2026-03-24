@@ -14,9 +14,10 @@
 	 # "bash ${./scripts/bluetooth_mgr.sh} --daemon"
          # "bash ${./scripts/usb.sh}"
 	 "gsettings set org.gnome.desktop.interface cursor-theme 'ArcMidnight-Cursors'"
-    	 "gsettings set org.gnome.desktop.interface cursor-size 24"
+	 "gsettings set org.gnome.desktop.interface cursor-size 24"
 	 "quickshell -p ~/.config/hypr/scripts/quickshell/Main.qml"
 	 "quickshell -p ~/.config/hypr/scripts/quickshell/TopBar.qml"
+	 #"quickshell -p ~/.config/hypr/scripts/quickshell/Dock.qml"
 	 "python3 ~/.config/hypr/scripts/quickshell/focustime/focus_daemon.py &"	
       ];
    };
