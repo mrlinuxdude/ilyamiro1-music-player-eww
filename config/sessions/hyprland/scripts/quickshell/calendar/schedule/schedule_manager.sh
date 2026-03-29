@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Keeping the cache in the same place so we don't break anything else
-CACHE_DIR="$HOME/.cache/eww/schedule"
+CACHE_DIR="$HOME/.cache/quickshell/schedule"
 CACHE_FILE="${CACHE_DIR}/schedule.json"
 CACHE_LIMIT=600 # 1 Hour
 

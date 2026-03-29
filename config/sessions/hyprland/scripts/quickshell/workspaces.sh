@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
 
-# 1. Safely close Eww windows only if eww is actually installed
-if command -v eww >/dev/null 2>&1; then
-    EWW_BIN=$(which eww)
-    EWW_CFG="$HOME/.config/eww/bar"
-    WINDOWS="battery_win music_win network_win calendar_win search_bar" 
-    ${EWW_BIN} --config "${EWW_CFG}" close $WINDOWS 2>/dev/null
-fi
-
-# 2. Clean up the toggle state files
 # --- Special Cleanup for Network/Bluetooth ---
 # The network toggle starts a background bluetooth scan that must be killed explicitly.
 BT_PID_FILE="$HOME/.cache/bt_scan_pid"

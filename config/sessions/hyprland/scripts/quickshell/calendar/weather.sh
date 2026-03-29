@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Paths
-cache_dir="$HOME/.cache/eww/weather"
+cache_dir="$HOME/.cache/quickshell/weather"
 json_file="${cache_dir}/weather.json"
 view_file="${cache_dir}/view_id"
 daily_cache_file="${cache_dir}/daily_weather_cache.json"

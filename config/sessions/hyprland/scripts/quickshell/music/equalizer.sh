@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-STATE_FILE="/tmp/eww_eq_state.json"
+STATE_FILE="/tmp/eq_state.json"
 PRESET_DIR="$HOME/.config/easyeffects/output"
-PRESET_NAME="eww_live_eq"
+PRESET_NAME="live_eq"
 PRESET_FILE="$PRESET_DIR/${PRESET_NAME}.json"
 
 mkdir -p "$PRESET_DIR"

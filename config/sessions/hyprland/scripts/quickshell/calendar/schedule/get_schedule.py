@@ -15,7 +15,7 @@ from selenium.common.exceptions import TimeoutException
 BASE_URL = "https://all.uddataplus.dk/skema/?id=id_menu_skema"
 RESOURCE_ID = "99217" 
 PROFILE_PATH = "/home/ilyamiro/.mozilla/firefox/schedule.special"
-CACHE_FILE = os.path.expanduser("~/.cache/eww/schedule/schedule.json")
+CACHE_FILE = os.path.expanduser("~/.cache/quickshell/schedule/schedule.json")
 
 # Time Configuration (24-hour format)
 SCHOOL_START_STR = "08:30"

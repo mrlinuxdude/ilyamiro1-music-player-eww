@@ -15,7 +15,6 @@
   wayland.windowManager.hyprland.enable = true;
 
   home.packages = with pkgs; [
-    waybar
     rofi
     pavucontrol
     fortune
@@ -33,8 +32,25 @@
     cliphist
     hyprlock
     tree
-  ];
+    jq
+    socat 
+    pamixer 
+    brightnessctl
+    acpi
+    iw
 
+    bluez
+    libnotify
+    networkmanager
+    lm_sensors
+
+    socat
+    bc
+    pulseaudio
+    ladspaPlugins
+    ladspa-sdk
+    imagemagick
+  ];
   wayland.windowManager.hyprland.settings = {
     general = {
       border_size = 0;

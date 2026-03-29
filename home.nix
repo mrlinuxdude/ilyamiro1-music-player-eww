@@ -102,8 +102,8 @@ in
   fonts.fontconfig.enable = true; 
   
   home.file = {
-    ".local/share/fonts/eww-fonts" = {
-      source = config/programs/eww/my-eww-config/fonts; 
+    ".local/share/fonts/" = {
+      source = config/fonts; 
       recursive = true;
     };
   };
