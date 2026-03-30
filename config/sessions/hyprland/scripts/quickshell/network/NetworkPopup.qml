@@ -31,7 +31,6 @@ Item {
         property string lastBtJson: ""
     }
 
-    // ... the rest of your file remains exactly the same from here down ...
     property bool ignoreNextModeFileUpdate: false
     Process {
         id: modeReader
@@ -309,7 +308,7 @@ Item {
     
     // Smooth transition properties. Drops to 0.0 immediately if power is cut.
     property real multiTransitionState: (isLogicMultiState && window.currentPower) ? 1.0 : 0.0
-    Behavior on multiTransitionState { NumberAnimation { duration: 1000; easing.type: Easing.InOutExpo } }
+    Behavior on multiTransitionState { NumberAnimation { duration: 1200; easing.type: Easing.InOutExpo } }
 
     function updateInfoNodes() {
         let nodes = [];
@@ -544,11 +543,11 @@ Item {
 
     property real globalOrbitAngle: 0
     NumberAnimation on globalOrbitAngle {
-        from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: true
+        from: 0; to: Math.PI * 2; duration: 200000; loops: Animation.Infinite; running: true
     }
 
     property real introState: 0.0
-    Behavior on introState { NumberAnimation { duration: 800; easing.type: Easing.OutQuint } }
+    Behavior on introState { NumberAnimation { duration: 1500; easing.type: Easing.OutCubic } }
 
     component LoadingDots : Row {
         spacing: 5
@@ -570,8 +569,6 @@ Item {
 
     Item {
         anchors.fill: parent
-        scale: 0.8 + (0.2 * introState)
-        opacity: introState
 
         Rectangle {
             anchors.fill: parent
@@ -580,7 +577,6 @@ Item {
             border.color: window.surface0
             border.width: 1
             clip: true
-
             Rectangle {
                 width: parent.width * 0.8; height: width; radius: width / 2
                 x: (parent.width / 2 - width / 2) + Math.cos(window.globalOrbitAngle * 2) * 150
@@ -780,7 +776,7 @@ Item {
                         
                         Behavior on activeTransition { 
                             enabled: window.introState >= 1.0; 
-                            NumberAnimation { duration: 1000; easing.type: Easing.InOutExpo } 
+                            NumberAnimation { duration: 1400; easing.type: Easing.OutExpo } 
                         }
 
                         property real multiShift: window.activeMode === "wifi" ? 0.0 : window.multiTransitionState
@@ -836,8 +832,8 @@ Item {
                             SequentialAnimation on bumpScale {
                                 id: coreBumpAnim
                                 running: false
-                                NumberAnimation { to: 1.15; duration: 150; easing.type: Easing.OutBack }
-                                NumberAnimation { to: 1.0; duration: 400; easing.type: Easing.OutQuint }
+                                NumberAnimation { to: 1.15; duration: 200; easing.type: Easing.OutBack }
+                                NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.OutQuint }
                             }
 
                             // A pure, mathematically subtle gradient rather than a dual-color mash
@@ -980,40 +976,44 @@ Item {
                                 }
                             }
 
+                            // OFFLINE TEXT
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                spacing: 10
+                                visible: !window.currentConn || !window.currentPower
+                                opacity: visible ? 1.0 : 0.0
+                                Behavior on opacity { NumberAnimation { duration: 300 } }
+
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    font.family: "Iosevka Nerd Font"
+                                    font.pixelSize: 48 - (16 * coreContainer.multiShift)
+                                    color: window.currentPower ? window.overlay0 : window.surface2
+                                    text: window.activeMode === "wifi" ? "󰤮" : "󰂲"
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    font.family: "JetBrains Mono"; font.weight: Font.Bold
+                                    font.pixelSize: 14 - (3 * coreContainer.multiShift)
+                                    color: window.overlay0
+                                    text: window.currentPowerPending 
+                                        ? ((window.activeMode === "wifi" ? window.expectedWifiPower : window.expectedBtPower) === "on" ? "Powering On..." : "Powering Off...") 
+                                        : (!window.currentPower ? "Radio Offline" : "Scanning...")
+                                }
+                            }
+
+                            // ONLINE TEXT (Base + Clipped Mask)
                             Item {
                                 anchors.fill: parent
+                                visible: window.currentConn && window.currentPower
+                                opacity: visible ? 1.0 : 0.0
+                                Behavior on opacity { NumberAnimation { duration: 300 } }
 
+                                // 1. Base Uncovered Text
                                 ColumnLayout {
-                                    anchors.centerIn: parent
-                                    spacing: 10
-                                    visible: !window.currentConn || !window.currentPower
-                                    opacity: visible ? 1.0 : 0.0
-                                    Behavior on opacity { NumberAnimation { duration: 300 } }
-
-                                    Text {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        font.family: "Iosevka Nerd Font"
-                                        font.pixelSize: 48 - (16 * coreContainer.multiShift)
-                                        color: window.currentPower ? window.overlay0 : window.surface2
-                                        text: window.activeMode === "wifi" ? "󰤮" : "󰂲"
-                                    }
-                                    Text {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        font.family: "JetBrains Mono"; font.weight: Font.Bold
-                                        font.pixelSize: 14 - (3 * coreContainer.multiShift)
-                                        color: window.overlay0
-                                        text: window.currentPowerPending 
-                                            ? ((window.activeMode === "wifi" ? window.expectedWifiPower : window.expectedBtPower) === "on" ? "Powering On..." : "Powering Off...") 
-                                            : (!window.currentPower ? "Radio Offline" : "Scanning...")
-                                    }
-                                }
-
-                                ColumnLayout {
+                                    id: baseCoreText
                                     anchors.centerIn: parent
                                     spacing: 4
-                                    visible: window.currentConn && window.currentPower
-                                    opacity: visible ? 1.0 : 0.0
-                                    Behavior on opacity { NumberAnimation { duration: 300 } }
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
@@ -1023,9 +1023,7 @@ Item {
                                         text: isMyDisconnecting ? "" : (coreMa.containsMouse ? (window.activeMode === "wifi" ? "󰖪" : "󰂲") : (coreContainer.myDevice ? coreContainer.myDevice.icon : ""))
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
-                                    
                                     LoadingDots { Layout.alignment: Qt.AlignHCenter; visible: isMyDisconnecting; dotCol: window.overlay1 }
-
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
                                         Layout.maximumWidth: 150 - (50 * coreContainer.multiShift)
@@ -1037,76 +1035,117 @@ Item {
                                         elide: Text.ElideRight
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
-                                    
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
                                         font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: 11
-                                        color: isMyDisconnecting ? window.overlay1 : (centralCore.disconnectFill > 0.1 ? window.crust : (coreMa.containsMouse ? window.crust : "#99000000"))
-                                        text: isMyDisconnecting ? "Disconnecting..." : (centralCore.disconnectFill > 0.1 ? "Hold..." : "Connected")
+                                        color: isMyDisconnecting ? window.overlay1 : (coreMa.containsMouse ? window.crust : "#99000000")
+                                        text: isMyDisconnecting ? "Disconnecting..." : (centralCore.disconnectFill > 0.01 ? "Hold..." : "Connected")
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
                                 }
 
-                                MouseArea {
-                                    id: coreMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: window.currentConn && !isMyDisconnecting ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                    
-                                    onPressed: {
-                                        if (window.currentConn && !isMyDisconnecting && !centralCore.disconnectTriggered) {
-                                            coreDrainAnim.stop();
-                                            coreFillAnim.start();
-                                        }
-                                    }
-                                    onReleased: {
-                                        if (!centralCore.disconnectTriggered && !isMyDisconnecting) {
-                                            coreFillAnim.stop();
-                                            coreDrainAnim.start();
-                                        }
-                                    }
-                                }
+                                // 2. Covered Clipped Text (Dynamically masks the text over the filling wave)
+                                Item {
+                                    id: waveClipItem
+                                    anchors.bottom: parent.bottom
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    height: Math.min(parent.height, Math.max(0, parent.height * centralCore.disconnectFill + 8))
+                                    clip: true
+                                    visible: centralCore.disconnectFill > 0
 
-                                NumberAnimation {
-                                    id: coreFillAnim
-                                    target: centralCore
-                                    property: "disconnectFill"
-                                    to: 1.0
-                                    duration: 700 * (1.0 - centralCore.disconnectFill) 
-                                    easing.type: Easing.InSine
-                                    onFinished: {
-                                        centralCore.disconnectTriggered = true;
-                                        centralCore.flashOpacity = 0.6;
-                                        coreFlashAnim.start();
-                                        coreBumpAnim.start();
-                                        
-                                        window.playSfx("disconnect.wav");
-                                        
-                                        let dd = window.disconnectingDevices;
-                                        dd[coreContainer.myId] = true;
-                                        window.disconnectingDevices = Object.assign({}, dd);
-                                        busyTimeout.restart();
-                                        
-                                        let cmd = window.activeMode === "wifi" 
-                                            ? "nmcli device disconnect $(nmcli -t -f DEVICE,TYPE d | grep wifi | cut -d: -f1 | head -n1)"
-                                            : "bash " + window.scriptsDir + "/bluetooth_panel_logic.sh --disconnect '" + coreContainer.myDevice.mac + "'"
-                                        Quickshell.execDetached(["sh", "-c", cmd])
-                                        
-                                        centralCore.disconnectFill = 0.0;
-                                        centralCore.disconnectTriggered = false;
-                                        
-                                        if (window.activeMode === "wifi") wifiPoller.running = true; else btPoller.running = true;
+                                    ColumnLayout {
+                                        spacing: 4
+                                        x: waveClipItem.width / 2 - width / 2
+                                        y: (centralCore.height / 2) - (height / 2) - (centralCore.height - waveClipItem.height)
+
+                                        Text {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            font.family: "Iosevka Nerd Font"
+                                            font.pixelSize: 48 - (16 * coreContainer.multiShift)
+                                            color: window.text
+                                            text: isMyDisconnecting ? "" : (coreMa.containsMouse ? (window.activeMode === "wifi" ? "󰖪" : "󰂲") : (coreContainer.myDevice ? coreContainer.myDevice.icon : ""))
+                                        }
+                                        LoadingDots { Layout.alignment: Qt.AlignHCenter; visible: isMyDisconnecting; dotCol: window.text }
+                                        Text {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            Layout.maximumWidth: 150 - (50 * coreContainer.multiShift)
+                                            horizontalAlignment: Text.AlignHCenter
+                                            font.family: "JetBrains Mono"; font.weight: Font.Black
+                                            font.pixelSize: 16 - (4 * coreContainer.multiShift)
+                                            color: window.text
+                                            text: coreContainer.myDevice ? (window.activeMode === "wifi" ? coreContainer.myDevice.ssid : coreContainer.myDevice.name) : ""
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: 11
+                                            color: window.text
+                                            text: isMyDisconnecting ? "Disconnecting..." : (centralCore.disconnectFill > 0.01 ? "Hold..." : "Connected")
+                                        }
                                     }
                                 }
+                            }
+
+                            MouseArea {
+                                id: coreMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: window.currentConn && !isMyDisconnecting ? Qt.PointingHandCursor : Qt.ArrowCursor
                                 
-                                NumberAnimation {
-                                    id: coreDrainAnim
-                                    target: centralCore
-                                    property: "disconnectFill"
-                                    to: 0.0
-                                    duration: 1000 * centralCore.disconnectFill 
-                                    easing.type: Easing.OutQuad
+                                onPressed: {
+                                    if (window.currentConn && !isMyDisconnecting && !centralCore.disconnectTriggered) {
+                                        coreDrainAnim.stop();
+                                        coreFillAnim.start();
+                                    }
                                 }
+                                onReleased: {
+                                    if (!centralCore.disconnectTriggered && !isMyDisconnecting) {
+                                        coreFillAnim.stop();
+                                        coreDrainAnim.start();
+                                    }
+                                }
+                            }
+
+                            NumberAnimation {
+                                id: coreFillAnim
+                                target: centralCore
+                                property: "disconnectFill"
+                                to: 1.0
+                                duration: 700 * (1.0 - centralCore.disconnectFill) 
+                                easing.type: Easing.InSine
+                                onFinished: {
+                                    centralCore.disconnectTriggered = true;
+                                    centralCore.flashOpacity = 0.6;
+                                    coreFlashAnim.start();
+                                    coreBumpAnim.start();
+                                    
+                                    window.playSfx("disconnect.wav");
+                                    
+                                    let dd = window.disconnectingDevices;
+                                    dd[coreContainer.myId] = true;
+                                    window.disconnectingDevices = Object.assign({}, dd);
+                                    busyTimeout.restart();
+                                    
+                                    let cmd = window.activeMode === "wifi" 
+                                        ? "nmcli device disconnect $(nmcli -t -f DEVICE,TYPE d | grep wifi | cut -d: -f1 | head -n1)"
+                                        : "bash " + window.scriptsDir + "/bluetooth_panel_logic.sh --disconnect '" + coreContainer.myDevice.mac + "'"
+                                    Quickshell.execDetached(["sh", "-c", cmd])
+                                    
+                                    centralCore.disconnectFill = 0.0;
+                                    centralCore.disconnectTriggered = false;
+                                    
+                                    if (window.activeMode === "wifi") wifiPoller.running = true; else btPoller.running = true;
+                                }
+                            }
+                            
+                            NumberAnimation {
+                                id: coreDrainAnim
+                                target: centralCore
+                                property: "disconnectFill"
+                                to: 0.0
+                                duration: 1000 * centralCore.disconnectFill 
+                                easing.type: Easing.OutQuad
                             }
                         }
                     }
@@ -1130,14 +1169,14 @@ Item {
 
                             property bool isLoaded: false
                             opacity: isLoaded ? 1.0 : 0.0
-                            Behavior on opacity { NumberAnimation { duration: 700; easing.type: Easing.OutQuint } }
+                            Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
 
                             property real entryAnim: isLoaded ? 1.0 : 0.0
-                            Behavior on entryAnim { NumberAnimation { duration: 1000; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+                            Behavior on entryAnim { NumberAnimation { duration: 600; easing.type: Easing.OutBack } }
 
                             Timer {
                                 running: true
-                                interval: 10 + (index * 30) 
+                                interval: 40 + (index * 30) 
                                 onTriggered: floatCardDelegateContainer.isLoaded = true
                             }
 
@@ -1179,17 +1218,25 @@ Item {
 
                             property real parentBaseAngle: pItem ? pItem.animatedBaseAngle : 0
                             
-                            // Perfect even spacing in single mode bypassing the parent sorting entirely
-                            property real singleBaseAngle: (index / Math.max(1, orbitRepeater.count)) * Math.PI * 2
+                            // To prevent list updating "jumps", we smoothly interpolate the layout properties while leaving the global rotation constant
+                            property real targetSingleBaseAngle: (index / Math.max(1, orbitRepeater.count)) * Math.PI * 2
+                            property real singleBaseAngle: targetSingleBaseAngle
+                            Behavior on singleBaseAngle { NumberAnimation { duration: 800; easing.type: Easing.OutExpo } }
+
                             property real singleLiveAngle: (window.globalOrbitAngle * 1.5) + singleBaseAngle
                             
                             property real arcSpread: Math.PI * 0.8 
-                            property real nodeOffset: (siblingsCount > 1) ? ((localIndex / (siblingsCount - 1)) - 0.5) * arcSpread : 0
+                            property real targetNodeOffset: (siblingsCount > 1) ? ((localIndex / (siblingsCount - 1)) - 0.5) * arcSpread : 0
+                            property real nodeOffset: targetNodeOffset
+                            Behavior on nodeOffset { NumberAnimation { duration: 800; easing.type: Easing.OutExpo } }
+
                             property real parentCoreAngle: (window.globalOrbitAngle * 1.5) + parentBaseAngle
                             property real multiLiveAngle: myParentIdx === -1 ? singleLiveAngle : (parentCoreAngle + nodeOffset)
 
                             property int ringIndex: isInfoNode ? 0 : index % 2
-                            property real ringOffset: ringIndex * 40
+                            property real targetRingOffset: ringIndex * 40
+                            property real ringOffset: targetRingOffset
+                            Behavior on ringOffset { NumberAnimation { duration: 800; easing.type: Easing.OutExpo } }
 
                             property real singleRadX: isInfoNode ? 280 : 320 + ringOffset
                             property real singleRadY: isInfoNode ? 180 : 200 + ringOffset
@@ -1203,10 +1250,11 @@ Item {
                             property real currentAngle: (singleLiveAngle * (1 - unifiedRatio)) + (multiLiveAngle * unifiedRatio)
                             
                             property real pwrDrift: window.currentPower ? 0 : 40
-                            Behavior on pwrDrift { NumberAnimation { duration: 800; easing.type: Easing.OutQuint } }
+                            Behavior on pwrDrift { NumberAnimation { duration: 600; easing.type: Easing.OutQuint } }
 
-                            property real animRadX: (currentRadX + pwrDrift) * entryAnim
-                            property real animRadY: (currentRadY + pwrDrift) * entryAnim
+                            // Make the pop out start from 25% of the radius (outside the core) so it floats nicely
+                            property real animRadX: (currentRadX + pwrDrift) * (0.25 + 0.75 * entryAnim)
+                            property real animRadY: (currentRadY + pwrDrift) * (0.25 + 0.75 * entryAnim)
 
                             property real targetX: myParentIdx === -1 
                                 ? (orbitContainer.width / 2) - (width / 2) + Math.cos(currentAngle) * animRadX
@@ -1224,7 +1272,7 @@ Item {
                             y: targetY + liveBob
 
                             scale: (!isLoaded ? 0.0 : (floatMa.pressed ? dynamicScale * 0.95 : (floatCard.locksList ? dynamicScale * 1.08 : dynamicScale))) * floatCard.bumpScale
-                            Behavior on scale { NumberAnimation { duration: 300; easing.type: Easing.OutBack } }
+                            Behavior on scale { NumberAnimation { duration: 400; easing.type: Easing.OutQuart } }
                             z: floatCard.locksList ? 10 : index
 
                             MultiEffect {
@@ -1270,8 +1318,8 @@ Item {
                                 SequentialAnimation on bumpScale {
                                     id: cardBumpAnim
                                     running: false
-                                    NumberAnimation { to: 1.2; duration: 150; easing.type: Easing.OutBack }
-                                    NumberAnimation { to: 1.0; duration: 400; easing.type: Easing.OutQuint }
+                                    NumberAnimation { to: 1.2; duration: 200; easing.type: Easing.OutBack }
+                                    NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.OutQuint }
                                 }
 
                                 property real nameImplicitWidth: baseNameText.implicitWidth

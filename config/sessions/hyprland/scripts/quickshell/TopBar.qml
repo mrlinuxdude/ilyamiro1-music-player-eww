@@ -58,17 +58,32 @@ PanelWindow {
     property string volPercent: "0%"
     property string volIcon: "󰕾"
     property bool isMuted: false
+    
     property string batPercent: "100%"
     property string batIcon: "󰁹"
+    property string batStatus: "Unknown"
+    
     property string kbLayout: "us"
     
-    property var workspacesData: []
+    // REPLACED: Raw array removed to prevent flickering. Native ListModel used instead.
+    ListModel { id: workspacesModel }
+    
     property var musicData: { "status": "Stopped", "title": "", "artUrl": "", "timeStr": "" }
 
     // Derived properties for UI logic
     property bool isMediaActive: barWindow.musicData.status !== "Stopped" && barWindow.musicData.title !== ""
     property bool isWifiOn: barWindow.wifiStatus.toLowerCase() === "enabled" || barWindow.wifiStatus.toLowerCase() === "on"
     property bool isBtOn: barWindow.btStatus.toLowerCase() === "enabled" || barWindow.btStatus.toLowerCase() === "on"
+    
+    property bool isSoundActive: !barWindow.isMuted && parseInt(barWindow.volPercent) > 0
+    property int batCap: parseInt(barWindow.batPercent) || 0
+    property bool isCharging: barWindow.batStatus === "Charging" || barWindow.batStatus === "Full"
+    property color batDynamicColor: {
+        if (isCharging) return mocha.green;
+        if (batCap >= 70) return mocha.blue;
+        if (batCap >= 30) return mocha.yellow;
+        return mocha.red;
+    }
 
     // ==========================================
     // DATA FETCHING (PROCESSES & TIMERS)
@@ -87,7 +102,25 @@ PanelWindow {
             onStreamFinished: {
                 let txt = this.text.trim();
                 if (txt !== "") {
-                    try { barWindow.workspacesData = JSON.parse(txt); } catch(e) {}
+                    try { 
+                        let newData = JSON.parse(txt);
+                        // SMART SYNC: Updates properties without destroying QML items to stop flicker
+                        if (workspacesModel.count !== newData.length) {
+                            workspacesModel.clear();
+                            for (let i = 0; i < newData.length; i++) {
+                                workspacesModel.append({ "wsId": newData[i].id.toString(), "wsState": newData[i].state });
+                            }
+                        } else {
+                            for (let i = 0; i < newData.length; i++) {
+                                if (workspacesModel.get(i).wsState !== newData[i].state) {
+                                    workspacesModel.setProperty(i, "wsState", newData[i].state);
+                                }
+                                if (workspacesModel.get(i).wsId !== newData[i].id.toString()) {
+                                    workspacesModel.setProperty(i, "wsId", newData[i].id.toString());
+                                }
+                            }
+                        }
+                    } catch(e) {}
                 }
             }
         }
@@ -120,11 +153,12 @@ PanelWindow {
             echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --bt-connected)"
             echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --battery-percent)"
             echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --battery-icon)"
+            echo "$(~/.config/hypr/scripts/quickshell/sys_info.sh --battery-status)"
         `]
         stdout: StdioCollector {
             onStreamFinished: {
                 let lines = this.text.trim().split("\n");
-                if (lines.length >= 8) {
+                if (lines.length >= 9) {
                     barWindow.wifiStatus = lines[0];
                     barWindow.wifiIcon = lines[1];
                     barWindow.wifiSsid = lines[2];
@@ -133,6 +167,7 @@ PanelWindow {
                     barWindow.btDevice = lines[5];
                     barWindow.batPercent = lines[6];
                     barWindow.batIcon = lines[7];
+                    barWindow.batStatus = lines[8];
                 }
             }
         }
@@ -217,12 +252,12 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 4 
 
-            // Decoupled Main Transition
+            // Staggered Main Transition
             property bool showLayout: false
             opacity: showLayout ? 1 : 0
             transform: Translate {
-                x: leftLayout.showLayout ? 0 : -20
-                Behavior on x { NumberAnimation { duration: 600; easing.type: Easing.OutCubic } }
+                x: leftLayout.showLayout ? 0 : -30
+                Behavior on x { NumberAnimation { duration: 800; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
             }
             
             Timer {
@@ -297,12 +332,12 @@ PanelWindow {
                 Layout.preferredHeight: parent.moduleHeight
                 clip: true
                 
-                property real targetWidth: barWindow.workspacesData.length > 0 ? wsLayout.implicitWidth + 20 : 0
+                property real targetWidth: workspacesModel.count > 0 ? wsLayout.implicitWidth + 20 : 0
                 Layout.preferredWidth: targetWidth
                 visible: targetWidth > 0
-                opacity: barWindow.workspacesData.length > 0 ? 1 : 0
+                opacity: workspacesModel.count > 0 ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: 300 } }
-                Behavior on targetWidth { NumberAnimation { duration: 300; easing.type: Easing.OutExpo } }
+                Behavior on targetWidth { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
 
                 RowLayout {
                     id: wsLayout
@@ -310,32 +345,33 @@ PanelWindow {
                     spacing: 6
                     
                     Repeater {
-                        model: barWindow.workspacesData
+                        model: workspacesModel
                         delegate: Rectangle {
                             id: wsPill
                             property bool isHovered: wsPillMouse.containsMouse
                             
-                            property real targetWidth: modelData.state === "active" ? 36 : 32
+                            // Mapped dynamically from the ListModel
+                            property string stateLabel: model.wsState
+                            property string wsName: model.wsId
+                            
+                            property real targetWidth: 32
                             Layout.preferredWidth: targetWidth
                             Behavior on targetWidth { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
                             
                             Layout.preferredHeight: 32; radius: 10
                             
-                            // IMPROVED WORKSPACE STATES - Clearer hierarchy for occupied vs empty
-                            color: modelData.state === "active" 
+                            color: stateLabel === "active" 
                                     ? mocha.mauve 
                                     : (isHovered 
                                         ? Qt.rgba(mocha.surface2.r, mocha.surface2.g, mocha.surface2.b, 0.9) 
-                                        : (modelData.state === "occupied" 
+                                        : (stateLabel === "occupied" 
                                             ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.9) 
                                             : "transparent"))
 
-                            // ADDED TACTILE SCALE ANIMATION ON HOVER
-                            scale: isHovered && modelData.state !== "active" ? 1.08 : 1.0
+                            scale: isHovered && stateLabel !== "active" ? 1.08 : 1.0
                             Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
                             
-                            // Safe Instantiation Cascade logic
-                            property bool initAnimTrigger: barWindow.startupCascadeFinished
+                            property bool initAnimTrigger: false
                             opacity: initAnimTrigger ? 1 : 0
                             transform: Translate {
                                 y: wsPill.initAnimTrigger ? 0 : 15
@@ -346,6 +382,8 @@ PanelWindow {
                                 if (!barWindow.startupCascadeFinished) {
                                     animTimer.interval = index * 60;
                                     animTimer.start();
+                                } else {
+                                    initAnimTrigger = true;
                                 }
                             }
 
@@ -361,17 +399,16 @@ PanelWindow {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: modelData.id
+                                text: wsName
                                 font.family: "JetBrains Mono"
                                 font.pixelSize: 14
-                                font.weight: modelData.state === "active" ? Font.Black : (modelData.state === "occupied" ? Font.Bold : Font.Medium)
+                                font.weight: stateLabel === "active" ? Font.Black : (stateLabel === "occupied" ? Font.Bold : Font.Medium)
                                 
-                                // IMPROVED TEXT CONTRAST - Pop occupied text to true text color, fade empty out
-                                color: modelData.state === "active" 
+                                color: stateLabel === "active" 
                                         ? mocha.crust 
                                         : (isHovered 
                                             ? mocha.text 
-                                            : (modelData.state === "occupied" ? mocha.text : mocha.overlay0))
+                                            : (stateLabel === "occupied" ? mocha.text : mocha.overlay0))
                                         
                                 Behavior on color { ColorAnimation { duration: 250 } }
                             }
@@ -379,7 +416,7 @@ PanelWindow {
                                 id: wsPillMouse
                                 hoverEnabled: true
                                 anchors.fill: parent
-                                onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh " + modelData.id])
+                                onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh " + wsName])
                             }
                         }
                     }
@@ -396,9 +433,12 @@ PanelWindow {
                 
                 property real targetWidth: barWindow.isMediaActive ? mediaLayoutContainer.width + 24 : 0
                 Layout.preferredWidth: targetWidth
-                visible: Layout.preferredWidth > 0 
+                visible: targetWidth > 0 || opacity > 0
+                opacity: barWindow.isMediaActive ? 1.0 : 0.0
 
-                Behavior on targetWidth { NumberAnimation { duration: 1400; easing.type: Easing.OutExpo } }
+                // Premium smooth slide expansion
+                Behavior on targetWidth { NumberAnimation { duration: 700; easing.type: Easing.OutQuint } }
+                Behavior on opacity { NumberAnimation { duration: 400 } }
                 
                 Item {
                     id: mediaLayoutContainer
@@ -407,6 +447,14 @@ PanelWindow {
                     anchors.leftMargin: 12
                     height: parent.height
                     width: innerMediaLayout.implicitWidth
+                    
+                    // Interior parallax slide effect
+                    opacity: barWindow.isMediaActive ? 1.0 : 0.0
+                    transform: Translate { 
+                        x: barWindow.isMediaActive ? 0 : -20 
+                        Behavior on x { NumberAnimation { duration: 700; easing.type: Easing.OutQuint } }
+                    }
+                    Behavior on opacity { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
 
                     RowLayout {
                         id: innerMediaLayout
@@ -439,7 +487,6 @@ PanelWindow {
                                         fillMode: Image.PreserveAspectCrop 
                                     }
                                     
-                                    // NEW: Dimmed slightly by tinting with the primary mauve accent, matching the weather icon
                                     Rectangle {
                                         anchors.fill: parent
                                         color: Qt.rgba(mocha.mauve.r, mocha.mauve.g, mocha.mauve.b, 0.2)
@@ -454,7 +501,7 @@ PanelWindow {
                                         font.family: "JetBrains Mono"; 
                                         font.weight: Font.Black; 
                                         font.pixelSize: 13; 
-                                        color: mocha.text; // Fixed contrast
+                                        color: mocha.text;
                                         elide: Text.ElideRight; 
                                         Layout.fillWidth: true
                                     }
@@ -524,17 +571,17 @@ PanelWindow {
             width: centerLayout.implicitWidth + 36
             Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
             
-            // Decoupled Center Startup Transition
+            // Staggered Center Transition
             property bool showLayout: false
             opacity: showLayout ? 1 : 0
             transform: Translate {
-                y: centerBox.showLayout ? 0 : -20
-                Behavior on y { NumberAnimation { duration: 600; easing.type: Easing.OutBack } }
+                y: centerBox.showLayout ? 0 : -30
+                Behavior on y { NumberAnimation { duration: 800; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
             }
 
             Timer {
                 running: barWindow.isStartupReady
-                interval: 10
+                interval: 150
                 onTriggered: centerBox.showLayout = true
             }
 
@@ -571,7 +618,6 @@ PanelWindow {
                         text: barWindow.weatherIcon; 
                         font.family: "Iosevka Nerd Font"; 
                         font.pixelSize: 24; 
-                        // Dimmed slightly by tinting the raw hex with the primary mauve accent
                         color: Qt.tint(barWindow.weatherHex, Qt.rgba(mocha.mauve.r, mocha.mauve.g, mocha.mauve.b, 0.4)) 
                     }
                     Text { text: barWindow.weatherTemp; font.family: "JetBrains Mono"; font.pixelSize: 17; font.weight: Font.Black; color: mocha.peach }
@@ -586,17 +632,17 @@ PanelWindow {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 4
 
-            // Decoupled Right Startup Animation
+            // Staggered Right Transition
             property bool showLayout: false
             opacity: showLayout ? 1 : 0
             transform: Translate {
-                x: rightLayout.showLayout ? 0 : 20
-                Behavior on x { NumberAnimation { duration: 600; easing.type: Easing.OutCubic } }
+                x: rightLayout.showLayout ? 0 : 30
+                Behavior on x { NumberAnimation { duration: 800; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
             }
             
             Timer {
                 running: barWindow.isStartupReady
-                interval: 10
+                interval: 250
                 onTriggered: rightLayout.showLayout = true
             }
 
@@ -637,7 +683,7 @@ PanelWindow {
                             Layout.alignment: Qt.AlignVCenter
                             
                             property bool isHovered: trayMouse.containsMouse
-                            property bool initAnimTrigger: barWindow.startupCascadeFinished
+                            property bool initAnimTrigger: false
                             opacity: initAnimTrigger ? (isHovered ? 1.0 : 0.8) : 0.0
                             scale: initAnimTrigger ? (isHovered ? 1.15 : 1.0) : 0.0
 
@@ -645,6 +691,8 @@ PanelWindow {
                                 if (!barWindow.startupCascadeFinished) {
                                     trayAnimTimer.interval = index * 50;
                                     trayAnimTimer.start();
+                                } else {
+                                    initAnimTrigger = true;
                                 }
                             }
                             Timer {
@@ -698,7 +746,7 @@ PanelWindow {
                 
                 property real targetWidth: sysLayout.implicitWidth + 20
                 Layout.preferredWidth: targetWidth
-                Behavior on targetWidth { NumberAnimation { duration: 400; easing.type: Easing.OutExpo } }
+                Behavior on targetWidth { NumberAnimation { duration: 500; easing.type: Easing.OutExpo } }
 
                 RowLayout {
                     id: sysLayout
@@ -712,14 +760,23 @@ PanelWindow {
                         property bool isHovered: kbMouse.containsMouse
                         color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
                         radius: 10; Layout.preferredHeight: sysLayout.pillHeight;
+                        clip: true
                         
                         property real targetWidth: kbLayoutRow.implicitWidth + 24
                         Layout.preferredWidth: targetWidth
-                        Behavior on targetWidth { NumberAnimation { duration: 300; easing.type: Easing.OutExpo } }
+                        Behavior on targetWidth { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
                         
                         scale: isHovered ? 1.05 : 1.0
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
+
+                        // Cascading entrance animation
+                        property bool initAnimTrigger: false
+                        Component.onCompleted: { if (!barWindow.startupCascadeFinished) { kbtimer.start() } else { initAnimTrigger = true } }
+                        Timer { id: kbtimer; interval: 0; onTriggered: parent.initAnimTrigger = true }
+                        opacity: initAnimTrigger ? 1 : 0
+                        transform: Translate { y: parent.initAnimTrigger ? 0 : 15; Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
+                        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
                         RowLayout { id: kbLayoutRow; anchors.centerIn: parent; spacing: 8
                             Text { text: "󰌌"; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: parent.parent.isHovered ? mocha.text : mocha.overlay2 }
@@ -734,6 +791,7 @@ PanelWindow {
                         property bool isHovered: wifiMouse.containsMouse
                         radius: 10; Layout.preferredHeight: sysLayout.pillHeight; 
                         color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
+                        clip: true
                         
                         // Vibrant, guaranteed gradient contrast
                         Rectangle {
@@ -750,15 +808,28 @@ PanelWindow {
 
                         property real targetWidth: wifiLayoutRow.implicitWidth + 24
                         Layout.preferredWidth: targetWidth
-                        Behavior on targetWidth { NumberAnimation { duration: 300; easing.type: Easing.OutExpo } }
+                        Behavior on targetWidth { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
                         
                         scale: isHovered ? 1.05 : 1.0
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
 
+                        // Cascading entrance animation
+                        property bool initAnimTrigger: false
+                        Component.onCompleted: { if (!barWindow.startupCascadeFinished) { wiftimer.start() } else { initAnimTrigger = true } }
+                        Timer { id: wiftimer; interval: 50; onTriggered: parent.initAnimTrigger = true }
+                        opacity: initAnimTrigger ? 1 : 0
+                        transform: Translate { y: parent.initAnimTrigger ? 0 : 15; Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
+                        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+
                         RowLayout { id: wifiLayoutRow; anchors.centerIn: parent; spacing: 8
                             Text { text: barWindow.wifiIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: barWindow.isWifiOn ? mocha.base : mocha.subtext0 }
-                            Text { text: barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off"; font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; color: barWindow.isWifiOn ? mocha.base : mocha.text; Layout.maximumWidth: 100; elide: Text.ElideRight }
+                            Text { 
+                                text: barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off"; 
+                                font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; 
+                                color: barWindow.isWifiOn ? mocha.base : mocha.text; 
+                                Layout.maximumWidth: 100; elide: Text.ElideRight 
+                            }
                         }
                         MouseArea { id: wifiMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network wifi"]) }
                     }
@@ -786,15 +857,28 @@ PanelWindow {
 
                         property real targetWidth: btLayoutRow.implicitWidth + 24
                         Layout.preferredWidth: targetWidth
-                        Behavior on targetWidth { NumberAnimation { duration: 350; easing.type: Easing.OutExpo } }
+                        Behavior on targetWidth { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
 
                         scale: isHovered ? 1.05 : 1.0
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
 
-                        RowLayout { id: btLayoutRow; anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.leftMargin: 12; spacing: barWindow.btDevice !== "" ? 8 : 0
+                        // Cascading entrance animation
+                        property bool initAnimTrigger: false
+                        Component.onCompleted: { if (!barWindow.startupCascadeFinished) { bttimer.start() } else { initAnimTrigger = true } }
+                        Timer { id: bttimer; interval: 100; onTriggered: parent.initAnimTrigger = true }
+                        opacity: initAnimTrigger ? 1 : 0
+                        transform: Translate { y: parent.initAnimTrigger ? 0 : 15; Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
+                        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+
+                        RowLayout { id: btLayoutRow; anchors.centerIn: parent; spacing: barWindow.btDevice !== "" ? 8 : 0
                             Text { text: barWindow.btIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: barWindow.isBtOn ? mocha.base : mocha.subtext0 }
-                            Text { visible: barWindow.btDevice !== ""; text: barWindow.btDevice; font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; color: barWindow.isBtOn ? mocha.base : mocha.text; Layout.maximumWidth: 100; elide: Text.ElideRight }
+                            Text { 
+                                visible: barWindow.btDevice !== ""; text: barWindow.btDevice; 
+                                font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; 
+                                color: barWindow.isBtOn ? mocha.base : mocha.text; 
+                                Layout.maximumWidth: 100; elide: Text.ElideRight 
+                            }
                         }
                         MouseArea { id: btMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle network bt"]) }
                     }
@@ -802,26 +886,48 @@ PanelWindow {
                     // Volume
                     Rectangle {
                         property bool isHovered: volMouse.containsMouse
-                        color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : (barWindow.isMuted ? Qt.rgba(0, 0, 0, 0.2) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4))
+                        color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
                         radius: 10; Layout.preferredHeight: sysLayout.pillHeight;
+                        clip: true
+
+                        // New Dynamic Sound Background Gradient
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 10
+                            opacity: barWindow.isSoundActive ? 1.0 : 0.0
+                            Behavior on opacity { NumberAnimation { duration: 300 } }
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.0; color: mocha.peach }
+                                GradientStop { position: 1.0; color: Qt.lighter(mocha.peach, 1.3) }
+                            }
+                        }
                         
                         property real targetWidth: volLayoutRow.implicitWidth + 24
                         Layout.preferredWidth: targetWidth
-                        Behavior on targetWidth { NumberAnimation { duration: 300; easing.type: Easing.OutExpo } }
+                        Behavior on targetWidth { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
                         
                         scale: isHovered ? 1.05 : 1.0
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
 
+                        // Cascading entrance animation
+                        property bool initAnimTrigger: false
+                        Component.onCompleted: { if (!barWindow.startupCascadeFinished) { voltimer.start() } else { initAnimTrigger = true } }
+                        Timer { id: voltimer; interval: 150; onTriggered: parent.initAnimTrigger = true }
+                        opacity: initAnimTrigger ? 1 : 0
+                        transform: Translate { y: parent.initAnimTrigger ? 0 : 15; Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
+                        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+
                         RowLayout { id: volLayoutRow; anchors.centerIn: parent; spacing: 8
-                            Text { text: barWindow.volIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: barWindow.isMuted ? mocha.overlay0 : mocha.peach }
+                            Text { 
+                                text: barWindow.volIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; 
+                                color: barWindow.isSoundActive ? mocha.base : mocha.subtext0 
+                            }
                             Text { 
                                 text: barWindow.volPercent; 
-                                font.family: "JetBrains Mono"; 
-                                font.pixelSize: 13; 
-                                font.weight: Font.Black; 
-                                color: barWindow.isMuted ? mocha.overlay0 : mocha.text; 
-                                font.strikeout: barWindow.isMuted 
+                                font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; 
+                                color: barWindow.isSoundActive ? mocha.base : mocha.text; 
                             }
                         }
                         MouseArea { id: volMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["pavucontrol"]) }
@@ -832,18 +938,48 @@ PanelWindow {
                         property bool isHovered: batMouse.containsMouse
                         color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4); 
                         radius: 10; Layout.preferredHeight: sysLayout.pillHeight;
+                        clip: true
+
+                        // New Dynamic Battery Background Gradient (Only full gradient when charging or critical)
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 10
+                            opacity: (barWindow.isCharging || barWindow.batCap <= 20) ? 1.0 : 0.0
+                            Behavior on opacity { NumberAnimation { duration: 300 } }
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop { position: 0.0; color: barWindow.batDynamicColor; Behavior on color { ColorAnimation { duration: 300 } } }
+                                GradientStop { position: 1.0; color: Qt.lighter(barWindow.batDynamicColor, 1.3); Behavior on color { ColorAnimation { duration: 300 } } }
+                            }
+                        }
                         
                         property real targetWidth: batLayoutRow.implicitWidth + 24
                         Layout.preferredWidth: targetWidth
-                        Behavior on targetWidth { NumberAnimation { duration: 300; easing.type: Easing.OutExpo } }
+                        Behavior on targetWidth { NumberAnimation { duration: 500; easing.type: Easing.OutQuint } }
                         
                         scale: isHovered ? 1.05 : 1.0
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
 
+                        // Cascading entrance animation
+                        property bool initAnimTrigger: false
+                        Component.onCompleted: { if (!barWindow.startupCascadeFinished) { battimer.start() } else { initAnimTrigger = true } }
+                        Timer { id: battimer; interval: 200; onTriggered: parent.initAnimTrigger = true }
+                        opacity: initAnimTrigger ? 1 : 0
+                        transform: Translate { y: parent.initAnimTrigger ? 0 : 15; Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
+                        Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+
                         RowLayout { id: batLayoutRow; anchors.centerIn: parent; spacing: 8
-                            Text { text: barWindow.batIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: parseInt(barWindow.batPercent) < 20 && barWindow.batIcon !== "󰂄" ? mocha.red : mocha.green }
-                            Text { text: barWindow.batPercent; font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; color: mocha.text }
+                            Text { 
+                                text: barWindow.batIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; 
+                                color: (barWindow.isCharging || barWindow.batCap <= 20) ? mocha.base : barWindow.batDynamicColor
+                                Behavior on color { ColorAnimation { duration: 300 } }
+                            }
+                            Text { 
+                                text: barWindow.batPercent; font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; 
+                                color: (barWindow.isCharging || barWindow.batCap <= 20) ? mocha.base : barWindow.batDynamicColor
+                                Behavior on color { ColorAnimation { duration: 300 } }
+                            }
                         }
                         MouseArea { id: batMouse; hoverEnabled: true; anchors.fill: parent; onClicked: Quickshell.execDetached(["bash", "-c", "~/.config/hypr/scripts/qs_manager.sh toggle battery"]) }
                     }

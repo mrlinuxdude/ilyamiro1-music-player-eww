@@ -153,17 +153,70 @@ Item {
         from: 0; to: Math.PI * 2; duration: 90000; loops: Animation.Infinite; running: true
     }
 
-    property real introState: 0.0
-    Component.onCompleted: introState = 1.0
-    Behavior on introState { NumberAnimation { duration: 800; easing.type: Easing.OutQuint } }
+    // --- ENHANCED STARTUP ANIMATION STATES ---
+    property real introMain: 0
+    property real introTop: 0
+    property real introCore: 0
+    property real introSliders: 0
+    property real introActions: 0
+    property real introProfiles: 0
+
+    ParallelAnimation {
+        running: true
+
+        // Base window fades, scales, and lifts
+        NumberAnimation { target: window; property: "introMain"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutQuart }
+
+        // Top bar drops in
+        SequentialAnimation {
+            PauseAnimation { duration: 100 }
+            NumberAnimation { target: window; property: "introTop"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutBack; easing.overshoot: 1.0 }
+        }
+
+        // Central core pops out and breathes
+        SequentialAnimation {
+            PauseAnimation { duration: 250 }
+            NumberAnimation { target: window; property: "introCore"; from: 0; to: 1.0; duration: 900; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
+        }
+
+        // Hardware sliders slide up
+        SequentialAnimation {
+            PauseAnimation { duration: 350 }
+            NumberAnimation { target: window; property: "introSliders"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutQuart }
+        }
+
+        // Actions waterfall
+        SequentialAnimation {
+            PauseAnimation { duration: 450 }
+            NumberAnimation { target: window; property: "introActions"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutExpo }
+        }
+
+        // Power profiles finish the wave
+        SequentialAnimation {
+            PauseAnimation { duration: 550 }
+            NumberAnimation { target: window; property: "introProfiles"; from: 0; to: 1.0; duration: 850; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
+        }
+    }
+
+    // Clean, unified exit animation for when an action is clicked
+    ParallelAnimation {
+        id: exitAnim
+        NumberAnimation { target: window; property: "introMain"; to: 0; duration: 400; easing.type: Easing.InQuart }
+        NumberAnimation { target: window; property: "introTop"; to: 0; duration: 300; easing.type: Easing.InQuart }
+        NumberAnimation { target: window; property: "introCore"; to: 0; duration: 350; easing.type: Easing.InQuart }
+        NumberAnimation { target: window; property: "introSliders"; to: 0; duration: 250; easing.type: Easing.InQuart }
+        NumberAnimation { target: window; property: "introActions"; to: 0; duration: 200; easing.type: Easing.InQuart }
+        NumberAnimation { target: window; property: "introProfiles"; to: 0; duration: 150; easing.type: Easing.InQuart }
+    }
 
     // -------------------------------------------------------------------------
     // UI LAYOUT
     // -------------------------------------------------------------------------
     Item {
         anchors.fill: parent
-        scale: 0.95 + (0.05 * introState)
-        opacity: introState
+        scale: 0.92 + (0.08 * introMain)
+        opacity: introMain
+        transform: Translate { y: 15 * (1 - introMain) }
 
         // Outer Border
         Rectangle {
@@ -224,8 +277,8 @@ Item {
                 anchors.margins: 25
                 spacing: 6
                 
-                transform: Translate { y: -15 * (1.0 - introState) }
-                opacity: introState
+                transform: Translate { y: -20 * (1.0 - introTop) }
+                opacity: introTop
                 
                 // Hours Box
                 Rectangle {
@@ -299,6 +352,10 @@ Item {
                 color: logoutMa.containsMouse ? "#1affffff" : "transparent"
                 border.color: logoutMa.containsMouse ? "#33ffffff" : "transparent"
                 clip: true
+                
+                transform: Translate { y: -20 * (1.0 - introTop) }
+                opacity: introTop
+
                 Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
                 Behavior on color { ColorAnimation { duration: 150 } }
                 Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -333,7 +390,11 @@ Item {
                 MouseArea {
                     id: logoutMa
                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: { Quickshell.execDetached(["sh", "-c", "loginctl terminate-user $USER"]); Quickshell.execDetached(["sh", "-c", "echo 'close' > /tmp/qs_widget_state"]); }
+                    onClicked: { 
+                        exitAnim.start(); // Trigger graceful UI exit
+                        Quickshell.execDetached(["sh", "-c", "loginctl terminate-user $USER"]); 
+                        Quickshell.execDetached(["sh", "-c", "echo 'close' > /tmp/qs_widget_state"]); 
+                    }
                 }
             }
 
@@ -343,6 +404,10 @@ Item {
             Item {
                 anchors.fill: parent
                 z: 1
+                
+                opacity: introCore
+                transform: Translate { y: 25 * (1 - introCore) }
+                scale: 0.9 + (0.1 * introCore)
 
                 // --- CLEAN OUTSIDE GLOW HALO ---
                 Rectangle {
@@ -586,8 +651,6 @@ Item {
                 anchors.right: parent.right
                 anchors.margins: 25
                 spacing: 15
-                transform: Translate { y: 20 * (1.0 - introState) }
-                opacity: introState
 
                 // 1. HARDWARE CONTROLS DOCK (Sliders)
                 Rectangle {
@@ -597,6 +660,9 @@ Item {
                     color: "#05ffffff"
                     border.color: "#1affffff"
                     border.width: 1
+
+                    opacity: introSliders
+                    transform: Translate { y: 20 * (1.0 - introSliders) }
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -799,6 +865,10 @@ Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             radius: 14
+
+                            // Staggered entry animation based on index
+                            opacity: introActions
+                            transform: Translate { y: 30 * (1.0 - introActions) + (index * 12 * (1.0 - introActions)) }
                             
                             // Map string names to dynamically grab the Matugen property, then generate a lighter version for a smooth wave
                             property color c1: window[baseColor] || window.surface1
@@ -935,7 +1005,7 @@ Item {
                                 duration: (550 * weight) * (1.0 - actionCapsule.fillLevel); easing.type: Easing.InSine
                                 onFinished: {
                                     actionCapsule.triggered = true; actionCapsule.flashOpacity = 0.6; cardFlashAnim.start();
-                                    window.introState = 0.0; exitTimer.start();
+                                    exitAnim.start(); exitTimer.start(); // Start graceful exit sequence
                                 }
                             }
                             
@@ -960,6 +1030,9 @@ Item {
                     color: "#0dffffff" 
                     border.color: "#1affffff"
                     border.width: 1
+
+                    opacity: introProfiles
+                    transform: Translate { y: 20 * (1.0 - introProfiles) }
                     
                     Rectangle {
                         id: sliderPill

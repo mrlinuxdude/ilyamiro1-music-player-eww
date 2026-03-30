@@ -18,20 +18,15 @@ SUBTARGET="$3"
 # -----------------------------------------------------------------------------
 # FAST PATH: WORKSPACE SWITCHING
 # -----------------------------------------------------------------------------
-# We handle this first to avoid the overhead of the watchdog and prep functions.
 if [[ "$ACTION" =~ ^[0-9]+$ ]]; then
     WORKSPACE_NUM="$ACTION"
     MOVE_OPT="$2"
     
-    # Send close signal to widget immediately
     echo "close" > "$IPC_FILE"
     
-    # Determine the switch command
     CMD="workspace $WORKSPACE_NUM"
     [[ "$MOVE_OPT" == "move" ]] && CMD="movetoworkspace $WORKSPACE_NUM"
 
-    # Find the best window to focus on the target workspace (excluding qs-master)
-    # Optimized jq query: filtered at the engine level for speed
     TARGET_ADDR=$(hyprctl clients -j | jq -r ".[] | select(.workspace.id == $WORKSPACE_NUM and .class != \"qs-master\") | .address" | head -n 1)
 
     if [[ -n "$TARGET_ADDR" && "$TARGET_ADDR" != "null" ]]; then
@@ -63,7 +58,6 @@ handle_wallpaper_prep() {
             filename=$(basename "$img")
             extension="${filename##*.}"
 
-            # Intercept WebP files dropped into the folder and convert them
             if [[ "${extension,,}" == "webp" ]]; then
                 new_img="${img%.*}.jpg"
                 magick "$img" "$new_img"
@@ -123,7 +117,6 @@ handle_network_prep() {
 # -----------------------------------------------------------------------------
 # ENSURE MASTER WINDOW & TOP BAR ARE ALIVE (ZOMBIE WATCHDOG)
 # -----------------------------------------------------------------------------
-# These checks are only necessary if we aren't doing a simple workspace switch
 QS_PID=$(pgrep -f "quickshell.*Main\.qml")
 WIN_EXISTS=$(hyprctl clients -j | grep "qs-master")
 BAR_PID=$(pgrep -f "quickshell.*TopBar\.qml")
@@ -134,7 +127,14 @@ if [[ -z "$QS_PID" ]] || [[ -z "$WIN_EXISTS" ]]; then
     fi
     quickshell -p "$QS_DIR/Main.qml" >/dev/null 2>&1 &
     disown
-    sleep 0.4 # Reduced sleep slightly for snappiness
+    
+    for _ in {1..20}; do
+        if hyprctl clients -j | grep -q "qs-master"; then
+            sleep 0.1
+            break
+        fi
+        sleep 0.05
+    done
 fi
 
 if [[ -z "$BAR_PID" ]]; then
@@ -158,6 +158,15 @@ if [[ "$ACTION" == "close" ]]; then
 fi
 
 if [[ "$ACTION" == "open" || "$ACTION" == "toggle" ]]; then
+    # Dynamically fetch focused monitor geometry and adjust for Wayland layout scale
+    ACTIVE_MON=$(hyprctl monitors -j | jq -r '.[] | select(.focused==true)')
+    MX=$(echo "$ACTIVE_MON" | jq -r '.x // 0')
+    MY=$(echo "$ACTIVE_MON" | jq -r '.y // 0')
+    MW=$(echo "$ACTIVE_MON" | jq -r '(.width / (.scale // 1)) | round // 1920')
+    MH=$(echo "$ACTIVE_MON" | jq -r '(.height / (.scale // 1)) | round // 1080')
+
+    MON_DATA="${MX}:${MY}:${MW}:${MH}"
+
     if [[ "$TARGET" == "network" ]]; then
         ACTIVE_WIDGET=$(cat /tmp/qs_active_widget 2>/dev/null)
         CURRENT_MODE=$(cat "$NETWORK_MODE_FILE" 2>/dev/null)
@@ -177,16 +186,16 @@ if [[ "$ACTION" == "open" || "$ACTION" == "toggle" ]]; then
             if [[ -n "$SUBTARGET" ]]; then
                 echo "$SUBTARGET" > "$NETWORK_MODE_FILE"
             fi
-            echo "$TARGET" > "$IPC_FILE"
+            echo "$TARGET::$MON_DATA" > "$IPC_FILE"
         fi
         exit 0
     fi
 
     if [[ "$TARGET" == "wallpaper" ]]; then
         handle_wallpaper_prep
-        echo "$TARGET:$WALLPAPER_THUMB" > "$IPC_FILE"
+        echo "$TARGET:$WALLPAPER_THUMB:$MON_DATA" > "$IPC_FILE"
     else
-        echo "$TARGET" > "$IPC_FILE"
+        echo "$TARGET::$MON_DATA" > "$IPC_FILE"
     fi
     exit 0
 fi

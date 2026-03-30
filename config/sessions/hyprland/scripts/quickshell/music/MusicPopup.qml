@@ -114,18 +114,63 @@ Item {
         }
     }
 
-    // --- STARTUP ANIMATION STATES ---
+    // --- ENHANCED STARTUP ANIMATION STATES ---
     property real introMain: 0
     property real introCover: 0
     property real introText: 0
-    property real introEq: 0
+    property real introControls: 0
+    property real introSeparator: 0
+    property real introEqHeader: 0
+    property real introEqSliders: 0
+    property real introPresets: 0
 
     ParallelAnimation {
         running: true
-        NumberAnimation { target: root; property: "introMain"; from: 0; to: 1.0; duration: 700; easing.type: Easing.OutQuart }
-        NumberAnimation { target: root; property: "introCover"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutExpo }
-        NumberAnimation { target: root; property: "introText"; from: 0; to: 1.0; duration: 900; easing.type: Easing.OutExpo }
-        NumberAnimation { target: root; property: "introEq"; from: 0; to: 1.0; duration: 1000; easing.type: Easing.OutExpo }
+
+        // 1. Base window fades, scales, and lifts smoothly
+        NumberAnimation { target: root; property: "introMain"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutQuart }
+
+        // 2. Cover art snaps in with a premium elastic feel
+        SequentialAnimation {
+            PauseAnimation { duration: 100 }
+            NumberAnimation { target: root; property: "introCover"; from: 0; to: 1.0; duration: 850; easing.type: Easing.OutBack; easing.overshoot: 1.0 }
+        }
+
+        // 3. Text block glides in smoothly
+        SequentialAnimation {
+            PauseAnimation { duration: 180 }
+            NumberAnimation { target: root; property: "introText"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutQuart }
+        }
+
+        // 4. Progress bar and Media Controls bounce in
+        SequentialAnimation {
+            PauseAnimation { duration: 260 }
+            NumberAnimation { target: root; property: "introControls"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
+        }
+
+        // 5. Separator line drops and fades
+        SequentialAnimation {
+            PauseAnimation { duration: 340 }
+            NumberAnimation { target: root; property: "introSeparator"; from: 0; to: 1.0; duration: 700; easing.type: Easing.OutQuart }
+        }
+
+        // 6. EQ header follows down seamlessly
+        SequentialAnimation {
+            PauseAnimation { duration: 400 }
+            NumberAnimation { target: root; property: "introEqHeader"; from: 0; to: 1.0; duration: 750; easing.type: Easing.OutQuart }
+        }
+
+        // 7. EQ Sliders sweep up in a sequential waterfall wave (Calculated inside the Delegate)
+        SequentialAnimation {
+            PauseAnimation { duration: 460 }
+            NumberAnimation { target: root; property: "introEqSliders"; from: 0; to: 1.0; duration: 900; easing.type: Easing.OutExpo }
+        }
+
+        // 8. Presets finish the orchestration with a final pop
+        SequentialAnimation {
+            PauseAnimation { duration: 580 }
+            NumberAnimation { target: root; property: "introPresets"; from: 0; to: 1.0; duration: 850; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
+        }
     }
 
     // --- FIXED COLOR PARSING LOGIC ---
@@ -268,8 +313,11 @@ Item {
     Item {
         id: mainWrapper
         anchors.fill: parent
-        scale: 0.95 + (0.05 * root.introMain)
+        
+        // Deepened scale effect and introduced a gentle Y-axis translation for the main container
+        scale: 0.92 + (0.08 * root.introMain)
         opacity: root.introMain
+        transform: Translate { y: 15 * (1 - root.introMain) }
 
         // OUTER ANIMATED BORDER WITH PROPER CLIPPING
         Item {
@@ -469,14 +517,15 @@ Item {
                     Layout.preferredHeight: 220
                     spacing: 25
 
-                    // Cover Art Wrapper (Provides Intro slide + Play/Pause elastic zoom)
+                    // Cover Art Wrapper
                     Item {
                         Layout.preferredWidth: 220
                         Layout.preferredHeight: 220
                         Layout.alignment: Qt.AlignVCenter
 
                         opacity: root.introCover
-                        transform: Translate { x: -30 * (1 - root.introCover) }
+                        // Enhanced 2D drift animation
+                        transform: Translate { x: -40 * (1 - root.introCover); y: 10 * (1 - root.introCover) }
 
                         // Elastic response to play/pause state
                         scale: root.musicData.status === "Playing" ? 1.0 : 0.90
@@ -564,12 +613,12 @@ Item {
                         Layout.alignment: Qt.AlignVCenter
                         spacing: 15
 
-                        // Elegant slide in for the text info
-                        opacity: root.introText
-                        transform: Translate { x: 30 * (1 - root.introText) }
-
+                        // TEXT INFO CHUNK
                         ColumnLayout {
                             spacing: 6
+                            opacity: root.introText
+                            transform: Translate { x: 30 * (1 - root.introText) }
+                            
                             Text {
                                 text: root.musicData.title
                                 
@@ -619,10 +668,12 @@ Item {
                             }
                         }
 
-                        // Progress Area
+                        // PROGRESS AREA CHUNK
                         ColumnLayout {
                             Layout.fillWidth: true
                             spacing: 5
+                            opacity: root.introControls
+                            transform: Translate { x: 20 * (1 - root.introControls); y: 10 * (1 - root.introControls) }
 
                             Slider {
                                 id: progBar
@@ -746,10 +797,13 @@ Item {
                             }
                         }
 
-                        // Media Controls
+                        // MEDIA CONTROLS CHUNK
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: 30
+                            opacity: root.introControls
+                            transform: Translate { y: 20 * (1 - root.introControls) }
+
                             MouseArea {
                                 width: 30; height: 30
                                 cursorShape: Qt.PointingHandCursor
@@ -835,8 +889,8 @@ Item {
                     color: "#1AFFFFFF"
                     radius: 1
 
-                    opacity: root.introEq
-                    transform: Translate { y: 15 * (1 - root.introEq) }
+                    opacity: root.introSeparator
+                    transform: Translate { y: 15 * (1 - root.introSeparator) }
                 }
 
                 // ==========================================
@@ -846,13 +900,12 @@ Item {
                     Layout.fillWidth: true
                     spacing: 15
 
-                    // Elegant slide up for EQ
-                    opacity: root.introEq
-                    transform: Translate { y: 25 * (1 - root.introEq) }
-
                     // Header Row
                     RowLayout {
                         Layout.fillWidth: true
+                        opacity: root.introEqHeader
+                        transform: Translate { y: 15 * (1 - root.introEqHeader) }
+
                         Text { text: "Equalizer"; color: root.mauve; font.family: "JetBrains Mono"; font.pixelSize: 16; font.bold: true; Layout.fillWidth: true }
                         
                         // Redesigned Apply Button
@@ -924,6 +977,12 @@ Item {
                                     id: sliderDelegate
                                     width: eqSliderRow.width / 10 
                                     height: eqSliderRow.height
+
+                                    // --- ENHANCED SLIDER CASCADING ANIMATION ---
+                                    opacity: root.introEqSliders
+                                    transform: Translate {
+                                        y: 30 * (1 - root.introEqSliders) + (index * 8 * (1 - root.introEqSliders))
+                                    }
 
                                     // Mathematical evaluation mapping to the exact timeline of the strike
                                     property real dist: root.eqLightningProgress - (modelData.idx - 1)
@@ -1280,6 +1339,10 @@ Item {
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 8
+                        
+                        opacity: root.introPresets
+                        transform: Translate { y: 20 * (1 - root.introPresets) }
+
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10

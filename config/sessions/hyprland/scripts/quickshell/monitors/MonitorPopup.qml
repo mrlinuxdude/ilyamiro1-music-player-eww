@@ -64,11 +64,30 @@ Item {
         loops: Animation.Infinite
         running: true
     }
+    // -------------------------------------------------------------------------
+    // FLUID STARTUP ANIMATIONS 
+    // -------------------------------------------------------------------------
+    property real introProgress: 0.0
+    property real monitorScale: 0.85
+    property real uiYOffset: 25
+    property real screenLight: 0.0
 
-    property real introState: 0.0
-    Component.onCompleted: introState = 1.0
-    Behavior on introState { NumberAnimation { duration: 800; easing.type: Easing.OutQuint } }
+    Component.onCompleted: startupAnim.start()
 
+    ParallelAnimation {
+        id: startupAnim
+        // Overall window and UI wrapper fades in
+        NumberAnimation { target: window; property: "introProgress"; from: 0.0; to: 1.0; duration: 900; easing.type: Easing.OutQuint }
+        
+        // Monitor physical body scales in slightly
+        NumberAnimation { target: window; property: "monitorScale"; from: 0.85; to: 1.0; duration: 1200; easing.type: Easing.OutQuint }
+        
+        // UI slides upwards gently into place - INCREASED DURATION FOR SLOWER GLIDE
+        NumberAnimation { target: window; property: "uiYOffset"; from: 25; to: 0; duration: 1800; easing.type: Easing.OutQuint }
+        
+        // Inner screen contents fade in slower (powering on effect)
+        NumberAnimation { target: window; property: "screenLight"; from: 0.0; to: 1.0; duration: 1500; easing.type: Easing.InOutQuad }
+    }
     property bool applyHovered: false
     property bool applyPressed: false
 
@@ -197,8 +216,8 @@ Item {
     // -------------------------------------------------------------------------
     Item {
         anchors.fill: parent
-        scale: 0.95 + (0.05 * introState)
-        opacity: introState
+        scale: 0.95 + (0.05 * window.introProgress)
+        opacity: window.introProgress
 
         Rectangle {
             anchors.fill: parent
@@ -252,8 +271,11 @@ Item {
                         anchors.centerIn: parent
                         width: 380
                         height: 280
-                        scale: Math.min(1.0, 2200 / window.currentSimW)
-                        Behavior on scale { NumberAnimation { duration: 600; easing.type: Easing.OutQuint } }
+                        
+                        property real baseScale: Math.min(1.0, 2200 / window.currentSimW)
+                        scale: baseScale * window.monitorScale
+                        opacity: window.introProgress
+                        Behavior on baseScale { NumberAnimation { duration: 600; easing.type: Easing.OutQuint } }
 
                         Rectangle {
                             id: deskSurface
@@ -338,61 +360,68 @@ Item {
                                 radius: 6
                                 color: window.surface0
                                 clip: true
-                                
-                                gradient: Gradient {
-                                    orientation: Gradient.Vertical
-                                    GradientStop { 
-                                        position: 0.0
-                                        color: Qt.tint(window.surface0, Qt.alpha(window.selectedResAccent, 0.15))
-                                        Behavior on color { ColorAnimation { duration: 400 } } 
-                                    }
-                                    GradientStop { 
-                                        position: 1.0
-                                        color: Qt.tint(window.surface0, Qt.alpha(window.selectedRateAccent, 0.1))
-                                        Behavior on color { ColorAnimation { duration: 400 } } 
-                                    }
-                                }
-                                
-                                Grid { 
-                                    anchors.centerIn: parent
-                                    rows: 10
-                                    columns: 15
-                                    spacing: 20
-                                    Repeater { 
-                                        model: 150
-                                        Rectangle { width: 2; height: 2; radius: 1; color: Qt.alpha(window.text, 0.1) } 
-                                    } 
-                                }
 
-                                Item {
-                                    anchors.centerIn: parent
-                                    scale: 1.0 / singleMonitorZoom.scale
+                                // This inner block handles the "powering on" visual delay
+                                Rectangle {
+                                    anchors.fill: parent
+                                    color: "transparent"
+                                    opacity: window.screenLight
                                     
-                                    ColumnLayout {
-                                        anchors.centerIn: parent
-                                        spacing: 4
-                                        Text { 
-                                            Layout.alignment: Qt.AlignHCenter
-                                            font.family: "Iosevka Nerd Font"
-                                            font.pixelSize: 38
-                                            color: window.selectedResAccent
-                                            text: "󰍹"
+                                    gradient: Gradient {
+                                        orientation: Gradient.Vertical
+                                        GradientStop { 
+                                            position: 0.0
+                                            color: Qt.tint(window.surface0, Qt.alpha(window.selectedResAccent, 0.15))
                                             Behavior on color { ColorAnimation { duration: 400 } } 
                                         }
-                                        Text { 
-                                            Layout.alignment: Qt.AlignHCenter
-                                            font.family: "JetBrains Mono"
-                                            font.weight: Font.Bold
-                                            font.pixelSize: 16
-                                            color: window.text
-                                            text: monitorsModel.count > 0 ? monitorsModel.get(0).name : "Unknown" 
+                                        GradientStop { 
+                                            position: 1.0
+                                            color: Qt.tint(window.surface0, Qt.alpha(window.selectedRateAccent, 0.1))
+                                            Behavior on color { ColorAnimation { duration: 400 } } 
                                         }
-                                        Text { 
-                                            Layout.alignment: Qt.AlignHCenter
-                                            font.family: "JetBrains Mono"
-                                            font.pixelSize: 12
-                                            color: window.subtext0
-                                            text: window.currentSimW + "x" + window.currentSimH + " @ " + (monitorsModel.count > 0 ? monitorsModel.get(0).rate : "60") + "Hz" 
+                                    }
+                                    
+                                    Grid { 
+                                        anchors.centerIn: parent
+                                        rows: 10
+                                        columns: 15
+                                        spacing: 20
+                                        Repeater { 
+                                            model: 150
+                                            Rectangle { width: 2; height: 2; radius: 1; color: Qt.alpha(window.text, 0.1) } 
+                                        } 
+                                    }
+
+                                    Item {
+                                        anchors.centerIn: parent
+                                        scale: 1.0 / singleMonitorZoom.scale
+                                        
+                                        ColumnLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 4
+                                            Text { 
+                                                Layout.alignment: Qt.AlignHCenter
+                                                font.family: "Iosevka Nerd Font"
+                                                font.pixelSize: 38
+                                                color: window.selectedResAccent
+                                                text: "󰍹"
+                                                Behavior on color { ColorAnimation { duration: 400 } } 
+                                            }
+                                            Text { 
+                                                Layout.alignment: Qt.AlignHCenter
+                                                font.family: "JetBrains Mono"
+                                                font.weight: Font.Bold
+                                                font.pixelSize: 16
+                                                color: window.text
+                                                text: monitorsModel.count > 0 ? monitorsModel.get(0).name : "Unknown" 
+                                            }
+                                            Text { 
+                                                Layout.alignment: Qt.AlignHCenter
+                                                font.family: "JetBrains Mono"
+                                                font.pixelSize: 12
+                                                color: window.subtext0
+                                                text: window.currentSimW + "x" + window.currentSimH + " @ " + (monitorsModel.count > 0 ? monitorsModel.get(0).rate : "60") + "Hz" 
+                                            }
                                         }
                                     }
                                 }
@@ -632,6 +661,10 @@ Item {
                 anchors.rightMargin: 30
                 height: 310
 
+                // UI block animates upwards fluidly safely without breaking the GridLayout
+                opacity: window.introProgress
+                transform: Translate { y: window.uiYOffset }
+
                 SequentialAnimation {
                     id: menuTransitionAnim
                     ParallelAnimation {
@@ -760,7 +793,7 @@ Item {
                         Layout.preferredHeight: 50
                         Layout.leftMargin: 10
                         Layout.rightMargin: 10
-
+                        
                         property var rates: [60, 75, 100, 120, 144, 240]
                         property var rateColors: [window.red, window.mauve, window.blue, window.sapphire, window.teal, window.green]
                         
@@ -888,6 +921,10 @@ Item {
                 anchors.margins: 30
                 width: 170
                 height: 50
+                
+                // Matches the right side panel animation
+                opacity: window.introProgress
+                transform: Translate { y: window.uiYOffset }
 
                 MultiEffect {
                     source: applyBtn

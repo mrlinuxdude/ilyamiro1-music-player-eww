@@ -17,8 +17,11 @@ FloatingWindow {
         Quickshell.execDetached(["bash", "-c", `hyprctl dispatch resizewindowpixel "exact 1 1,title:^(qs-master)$" && hyprctl dispatch movewindowpixel "exact -5000 -5000,title:^(qs-master)$"`]);
     }
 
-    property int screenW: 1920
-    property int screenH: 1080
+    // Dynamic monitor tracking
+    property int activeMx: 0
+    property int activeMy: 0
+    property int activeMw: 1920
+    property int activeMh: 1080
 
     property string currentActive: "hidden" 
     onCurrentActiveChanged: {
@@ -40,17 +43,31 @@ FloatingWindow {
     property real animW: 1
     property real animH: 1
 
-    property var layouts: {
-        "battery":   { w: 480, h: 760, x: screenW - 500, y: 70, comp: "battery/BatteryPopup.qml" },
-        "calendar":  { w: 1450, h: 750, x: 235, y: 70, comp: "calendar/CalendarPopup.qml" },
-        "music":     { w: 700, h: 620, x: 12, y: 70, comp: "music/MusicPopup.qml" },
-        "network":   { w: 900, h: 700, x: screenW - 920, y: 70, comp: "network/NetworkPopup.qml" },
-        "stewart":   { w: 800, h: 600, x: Math.floor((screenW/2)-(800/2)), y: Math.floor((screenH/2)-(600/2)), comp: "stewart/stewart.qml" },
-        "wallpaper": { w: 1920, h: 650, x: 0, y: Math.floor((screenH/2)-(650/2)), comp: "wallpaper/WallpaperPicker.qml" },
-        "monitors":  { w: 850, h: 580, x: Math.floor((screenW/2)-(850/2)), y: Math.floor((screenH/2)-(580/2)), comp: "monitors/MonitorPopup.qml" },
-        "focustime": { w: 900, h: 720, x: Math.floor((screenW/2)-(900/2)), y: Math.floor((screenH/2)-(720/2)), comp: "focustime/FocusTimePopup.qml" },
-        "hidden":    { w: 1, h: 1, x: -5000, y: -5000, comp: "" } 
+    function getLayout(name) {
+        let mx = masterWindow.activeMx;
+        let my = masterWindow.activeMy;
+        let mw = masterWindow.activeMw;
+        let mh = masterWindow.activeMh;
+
+        let base = {
+            "battery":   { w: 480, h: 760, rx: mw - 500, ry: 70, comp: "battery/BatteryPopup.qml" },
+            "calendar":  { w: 1450, h: 750, rx: 235, ry: 70, comp: "calendar/CalendarPopup.qml" },
+            "music":     { w: 700, h: 620, rx: 12, ry: 70, comp: "music/MusicPopup.qml" },
+            "network":   { w: 900, h: 700, rx: mw - 920, ry: 70, comp: "network/NetworkPopup.qml" },
+            "stewart":   { w: 800, h: 600, rx: Math.floor((mw/2)-(800/2)), ry: Math.floor((mh/2)-(600/2)), comp: "stewart/stewart.qml" },
+            "wallpaper": { w: mw, h: 650, rx: 0, ry: Math.floor((mh/2)-(650/2)), comp: "wallpaper/WallpaperPicker.qml" },
+            "monitors":  { w: 850, h: 580, rx: Math.floor((mw/2)-(850/2)), ry: Math.floor((mh/2)-(580/2)), comp: "monitors/MonitorPopup.qml" },
+            "focustime": { w: 900, h: 720, rx: Math.floor((mw/2)-(900/2)), ry: Math.floor((mh/2)-(720/2)), comp: "focustime/FocusTimePopup.qml" },
+            "hidden":    { w: 1, h: 1, rx: -5000 - mx, ry: -5000 - my, comp: "" } 
+        };
+
+        if (!base[name]) return null;
+        let t = base[name];
+        t.x = mx + t.rx;
+        t.y = my + t.ry;
+        return t;
     }
+
     width: 1
     height: 1
     implicitWidth: width
@@ -75,8 +92,8 @@ FloatingWindow {
         // INNER FIXED CONTAINER
         Item {
             anchors.centerIn: parent
-            width: masterWindow.currentActive !== "hidden" && layouts[masterWindow.currentActive] ? layouts[masterWindow.currentActive].w : 1
-            height: masterWindow.currentActive !== "hidden" && layouts[masterWindow.currentActive] ? layouts[masterWindow.currentActive].h : 1
+            width: masterWindow.currentActive !== "hidden" && getLayout(masterWindow.currentActive) ? getLayout(masterWindow.currentActive).w : 1
+            height: masterWindow.currentActive !== "hidden" && getLayout(masterWindow.currentActive) ? getLayout(masterWindow.currentActive).h : 1
 
             StackView {
                 id: widgetStack
@@ -115,10 +132,10 @@ FloatingWindow {
         masterWindow.isWallpaperTransition = involvesWallpaper;
 
         if (newWidget === "hidden") {
-            if (currentActive !== "hidden" && layouts[currentActive]) {
+            if (currentActive !== "hidden" && getLayout(currentActive)) {
                 masterWindow.morphDuration = 250; // FAST CLOSE
                 masterWindow.disableMorph = false;
-                let t = layouts[currentActive];
+                let t = getLayout(currentActive);
                 let cx = Math.floor(t.x + (t.w/2));
                 let cy = Math.floor(t.y + (t.h/2));
                 
@@ -133,7 +150,7 @@ FloatingWindow {
             if (currentActive === "hidden") {
                 masterWindow.morphDuration = 250; // FAST INITIAL OPEN
                 masterWindow.disableMorph = false;
-                let t = layouts[newWidget];
+                let t = getLayout(newWidget);
                 let cx = Math.floor(t.x + (t.w / 2));
                 let cy = Math.floor(t.y + (t.h / 2));
 
@@ -178,7 +195,7 @@ FloatingWindow {
         property string newWidget: ""
         property string newArg: ""
         onTriggered: {
-            let t = layouts[newWidget];
+            let t = getLayout(newWidget);
 
             masterWindow.currentActive = newWidget;
             masterWindow.activeArg = newArg;
@@ -222,7 +239,7 @@ FloatingWindow {
         masterWindow.currentActive = newWidget;
         masterWindow.activeArg = arg;
         
-        let t = layouts[newWidget];
+        let t = getLayout(newWidget);
         masterWindow.animW = t.w;
         masterWindow.animH = t.h;
         masterWindow.width = t.w;
@@ -260,9 +277,17 @@ FloatingWindow {
                 let cmd = parts[0];
                 let arg = parts.length > 1 ? parts[1] : "";
 
+                // Feed monitor dimensions dynamically into masterWindow
+                if (parts.length >= 6) {
+                    masterWindow.activeMx = parseInt(parts[2]) || 0;
+                    masterWindow.activeMy = parseInt(parts[3]) || 0;
+                    masterWindow.activeMw = parseInt(parts[4]) || 1920;
+                    masterWindow.activeMh = parseInt(parts[5]) || 1080;
+                }
+
                 if (cmd === "close") {
                     switchWidget("hidden", "");
-                } else if (layouts[cmd]) {
+                } else if (getLayout(cmd)) {
                     delayedClear.stop();
                     if (masterWindow.isVisible && masterWindow.currentActive === cmd) {
                         switchWidget("hidden", "");

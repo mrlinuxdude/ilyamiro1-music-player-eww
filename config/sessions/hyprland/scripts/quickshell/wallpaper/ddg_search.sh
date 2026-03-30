@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 QUERY="$1"
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 CACHE_DIR="$HOME/.cache/wallpaper_picker"
@@ -9,13 +10,13 @@ LOG_FILE="/tmp/qs_ddg_downloader.log"
 
 echo "=== Starting search for: $QUERY ===" > "$LOG_FILE"
 
-# 1. Guarantee directory exists (fixes silent curl failures)
+# 1. Guarantee directory exists
 mkdir -p "$SEARCH_DIR"
 
-# 2. Use 'python3 -u' to force unbuffered output so the loop gets data INSTANTLY
+# 2. Force unbuffered output so the loop gets data INSTANTLY
 python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb_url full_url; do
     
-    # 3. Safely read control file, stripping weird invisible newlines
+    # 3. Safely read control file
     state=$(cat "$CONTROL_FILE" 2>/dev/null | tr -d '[:space:]')
     
     if [[ "$state" == "stop" ]]; then 
@@ -28,16 +29,29 @@ python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb
         state=$(cat "$CONTROL_FILE" 2>/dev/null | tr -d '[:space:]')
     done
 
-    if [ -z "$thumb_url" ]; then continue; fi
+    if [ -z "$thumb_url" ] || [ -z "$full_url" ]; then continue; fi
 
-    # Use a faster, safer unique ID generator
+    # =========================================================================
+    # NEW: PRE-FLIGHT CHECK ON THE FULL URL
+    # We fetch ONLY the headers (-I) of the full image URL. 
+    # -L follows redirects, -m 3 prevents hanging on dead sites.
+    # If the final destination isn't an image, we drop it immediately.
+    # =========================================================================
+    target_headers=$(curl -s -I -L -m 3 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "$full_url")
+    target_type=$(echo "$target_headers" | grep -i "content-type:" | tail -n 1 | tr -d '\r')
+
+    if [[ ! "$target_type" =~ "image/" ]]; then
+        echo "Skip: Full URL is dead or HTML ($target_type) -> $full_url" >> "$LOG_FILE"
+        continue
+    fi
+    # =========================================================================
+
     uuid=$(date +%s%N)
     ext="${full_url##*.}"
     ext="${ext%%\?*}"
     ext=$(echo "$ext" | tr '[:upper:]' '[:lower:]')
     if [[ ! "$ext" =~ ^(jpg|jpeg|png|webp|gif)$ ]]; then ext="jpg"; fi
 
-    # Force webp to jpg for Qt compatibility
     is_webp=0
     if [[ "$ext" == "webp" ]]; then
         is_webp=1
@@ -48,13 +62,12 @@ python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb
     filepath="$SEARCH_DIR/$filename"
     tmppath="${filepath}.tmp"
 
-    echo "Downloading: $thumb_url -> $filename" >> "$LOG_FILE"
+    echo "Downloading Thumb: $thumb_url -> $filename" >> "$LOG_FILE"
 
-    # Download to a temporary file first
+    # Download the thumbnail to a temporary file first
     curl -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" "$thumb_url" -o "$tmppath"
 
-    # 4. Check state again AFTER the long curl block to prevent race conditions 
-    # where the app tries to clear the directory while a download is still finishing.
+    # 4. Check state again AFTER the long curl block
     state=$(cat "$CONTROL_FILE" 2>/dev/null | tr -d '[:space:]')
     if [[ "$state" == "stop" ]]; then 
         echo "Stop signal received during download. Discarding." >> "$LOG_FILE"
@@ -62,17 +75,23 @@ python3 -u "$SCRIPT_DIR/get_ddg_links.py" "$QUERY" | while IFS='|' read -r thumb
         exit 0 
     fi
 
-    # If the file successfully downloaded and has data, atomically move it
+    # 5. Verify the thumbnail itself is valid and not corrupted
     if [ -s "$tmppath" ]; then
-        # Ensure WebP thumbnails are converted to JPG for QuickShell compatibility
-        if file "$tmppath" | grep -iq "webp" || [ $is_webp -eq 1 ]; then
-            magick "$tmppath" "$filepath" 2>/dev/null || mv "$tmppath" "$filepath"
+        actual_mime=$(file -b --mime-type "$tmppath")
+        
+        if [[ ! "$actual_mime" =~ ^image/ ]]; then
+            echo "ERROR: Thumb is not an image ($actual_mime). Discarding." >> "$LOG_FILE"
             rm -f "$tmppath"
         else
-            mv "$tmppath" "$filepath"
+            if [[ "$actual_mime" == "image/webp" ]] || [ $is_webp -eq 1 ]; then
+                magick "$tmppath" "$filepath" 2>/dev/null || mv "$tmppath" "$filepath"
+                rm -f "$tmppath"
+            else
+                mv "$tmppath" "$filepath"
+            fi
+            echo "$filename|$full_url" >> "$MAP_FILE"
+            echo "Success: $filename saved." >> "$LOG_FILE"
         fi
-        echo "$filename|$full_url" >> "$MAP_FILE"
-        echo "Success: $filename saved." >> "$LOG_FILE"
     else
         echo "ERROR: Failed or empty download for $thumb_url" >> "$LOG_FILE"
         rm -f "$tmppath"

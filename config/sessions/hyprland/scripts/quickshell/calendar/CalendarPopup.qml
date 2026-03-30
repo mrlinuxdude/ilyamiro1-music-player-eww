@@ -17,9 +17,9 @@ Item {
         sequence: "Left"
         onActivated: {
             if (calHover.hovered) {
-                window.monthOffset--;
+                window.setMonthOffset(window.targetMonthOffset - 1);
             } else {
-                if (window.weatherView > 0) window.weatherView--;
+                window.setWeatherView(window.targetWeatherView - 1);
             }
         }
     }
@@ -28,9 +28,9 @@ Item {
         sequence: "Right"
         onActivated: {
             if (calHover.hovered) {
-                window.monthOffset++;
+                window.setMonthOffset(window.targetMonthOffset + 1);
             } else {
-                if (window.weatherView < 4 && window.weatherData) window.weatherView++;
+                window.setWeatherView(window.targetWeatherView + 1);
             }
         }
     }
@@ -84,14 +84,71 @@ Item {
         return window.mauve;                            // Night Accent
     }
 
-    // Blends the accent color with the theme's text color for perfect harmony and readability
     readonly property color textAccent: Qt.tint(window.timeAccent, Qt.alpha(window.text, 0.35))
 
     // -------------------------------------------------------------------------
-    // ANIMATIONS & INTRO
+    // STARTUP ANIMATION STATES
     // -------------------------------------------------------------------------
-    property real introState: 0.0
-    Behavior on introState { NumberAnimation { duration: 1200; easing.type: Easing.OutExpo } }
+    property bool startupComplete: false
+    property real introMain: 0
+    property real introAmbient: 0
+    property real introClock: 0
+    property real introCalendar: 0
+    property real introWeather: 0
+    property real introSchedule: 0
+
+    SequentialAnimation {
+        running: true
+        
+        // 50ms buffer to allow the window manager to map the surface before animating
+        PauseAnimation { duration: 20 }
+
+        ParallelAnimation {
+            // Base window fades and scales slightly
+            NumberAnimation { target: window; property: "introMain"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutQuart }
+
+            // Ambient background glows and big parallax icon fade in
+            SequentialAnimation {
+                PauseAnimation { duration: 150 }
+                NumberAnimation { target: window; property: "introAmbient"; from: 0; to: 1.0; duration: 1000; easing.type: Easing.OutSine }
+            }
+
+            // Central clock and 3D orbital pop from the center
+            SequentialAnimation {
+                PauseAnimation { duration: 250 }
+                NumberAnimation { target: window; property: "introClock"; from: 0; to: 1.0; duration: 900; easing.type: Easing.OutBack; easing.overshoot: 1.15 }
+            }
+
+            // Left wing (Calendar) slides in from the left
+            SequentialAnimation {
+                PauseAnimation { duration: 350 }
+                NumberAnimation { target: window; property: "introCalendar"; from: 0; to: 1.0; duration: 850; easing.type: Easing.OutQuint }
+            }
+
+            // Right wing (Weather) slides in from the right
+            SequentialAnimation {
+                PauseAnimation { duration: 400 }
+                NumberAnimation { target: window; property: "introWeather"; from: 0; to: 1.0; duration: 850; easing.type: Easing.OutQuint }
+            }
+
+            // Bottom section (Schedule) flows up smoothly
+            SequentialAnimation {
+                PauseAnimation { duration: 500 }
+                NumberAnimation { target: window; property: "introSchedule"; from: 0; to: 1.0; duration: 900; easing.type: Easing.OutExpo }
+            }
+    	}
+    	ScriptAction { script: window.startupComplete = true }
+    }
+
+    ParallelAnimation {
+        id: exitAnim
+        NumberAnimation { target: window; property: "introMain"; to: 0; duration: 400; easing.type: Easing.InQuart }
+        NumberAnimation { target: window; property: "introAmbient"; to: 0; duration: 250; easing.type: Easing.InQuart }
+        NumberAnimation { target: window; property: "introClock"; to: 0; duration: 300; easing.type: Easing.InQuart }
+        NumberAnimation { target: window; property: "introCalendar"; to: 0; duration: 350; easing.type: Easing.InQuart }
+        NumberAnimation { target: window; property: "introWeather"; to: 0; duration: 350; easing.type: Easing.InQuart }
+        NumberAnimation { target: window; property: "introSchedule"; to: 0; duration: 200; easing.type: Easing.InQuart }
+    }
 
     property real globalOrbitAngle: 0
     NumberAnimation on globalOrbitAngle {
@@ -124,11 +181,92 @@ Item {
     }
 
     // -------------------------------------------------------------------------
-    // WEATHER DATA & DYNAMIC TIME CALCULATION
+    // WEATHER DATA & ELEGANT TRANSITIONS (3D ORBIT SPIN)
     // -------------------------------------------------------------------------
     property var weatherData: null
     property int weatherView: 0
     property color activeWeatherHex: weatherData && weatherData.forecast && weatherData.forecast[weatherView] ? weatherData.forecast[weatherView].hex : window.mauve
+
+    // Transition Properties
+    property int targetWeatherView: 0
+    property real weatherContentOpacity: 1.0
+    property real weatherContentOffset: 0.0
+    property int weatherAnimDirection: 1
+    
+    // New 3D Spin Properties
+    property real transitionSpin: 0.0
+    property real transitionScale: 1.0
+
+    // -------------------------------------------------------------------------
+    // TEMPERATURE LOGIC 
+    // -------------------------------------------------------------------------
+    property real targetTemp: window.weatherData && window.weatherData.forecast[window.targetWeatherView] ? Number(window.weatherData.forecast[window.targetWeatherView].max) : 0
+    property real displayedTemp: targetTemp
+
+    Behavior on displayedTemp {
+        NumberAnimation {
+            id: tempAnim
+            duration: 800
+            easing.type: Easing.OutQuart
+        }
+    }
+
+    property bool isTempAnimating: tempAnim.running
+    property color tempGlowColor: {
+        if (!isTempAnimating || !window.startupComplete) return window.text;
+        
+        // If the target is higher than the currently ticking number, we are counting up
+        if (window.targetTemp > window.displayedTemp) return window.red;
+        
+        // If the target is lower than the currently ticking number, we are counting down
+        if (window.targetTemp < window.displayedTemp) return window.blue;
+        
+        return window.text; 
+    }
+    SequentialAnimation {
+        id: weatherTransitionAnim
+        ParallelAnimation {
+            NumberAnimation { target: window; property: "weatherContentOpacity"; to: 0.0; duration: 250; easing.type: Easing.InSine }
+            NumberAnimation { target: window; property: "weatherContentOffset"; to: -40 * weatherAnimDirection; duration: 250; easing.type: Easing.InSine }
+            
+            // Spin the 3D orbit out and scale it down for depth
+            NumberAnimation { target: window; property: "transitionSpin"; to: 180 * weatherAnimDirection; duration: 300; easing.type: Easing.InBack }
+            NumberAnimation { target: window; property: "transitionScale"; to: 0.8; duration: 300; easing.type: Easing.InCubic }
+        }
+        ScriptAction { 
+            script: { 
+                window.weatherView = window.targetWeatherView; 
+                window.weatherContentOffset = 40 * weatherAnimDirection; // Move to opposite side while hidden
+                
+                // Reset the spin to the opposite side so it continues spinning into place seamlessly
+                window.transitionSpin = -180 * weatherAnimDirection;
+            } 
+        }
+        ParallelAnimation {
+            NumberAnimation { target: window; property: "weatherContentOpacity"; to: 1.0; duration: 450; easing.type: Easing.OutQuart }
+            NumberAnimation { target: window; property: "weatherContentOffset"; to: 0.0; duration: 450; easing.type: Easing.OutQuart }
+            
+            // Snap the 3D orbit back to 0 degrees and restore full scale
+            NumberAnimation { target: window; property: "transitionSpin"; to: 0.0; duration: 600; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
+            NumberAnimation { target: window; property: "transitionScale"; to: 1.0; duration: 500; easing.type: Easing.OutBack }
+        }
+    }
+
+    function setWeatherView(idx) {
+        if (idx < 0 || idx > 4 || !window.weatherData) return;
+        if (idx === window.targetWeatherView) return; // Ignore if we are already heading there
+
+        // If an animation is already running, gracefully interrupt it and apply the logical switch
+        // before starting the new animation so the data doesn't get desynced.
+        if (weatherTransitionAnim.running) {
+            weatherTransitionAnim.stop();
+            window.weatherView = window.targetWeatherView;
+        }
+
+        window.weatherAnimDirection = idx > window.weatherView ? 1 : -1;
+        window.targetWeatherView = idx;
+        weatherTransitionAnim.start();
+    }
 
     property int activeHourIndex: {
         if (window.weatherView !== 0 || !window.weatherData || !window.weatherData.forecast || !window.weatherData.forecast[0] || !window.weatherData.forecast[0].hourly) return -1;
@@ -196,11 +334,47 @@ Item {
     }
 
     // -------------------------------------------------------------------------
-    // CALENDAR GRID LOGIC
+    // CALENDAR GRID LOGIC & TRANSITIONS
     // -------------------------------------------------------------------------
     property int monthOffset: 0
+    property int targetMonthOffset: 0
     property string targetMonthName: ""
     ListModel { id: calendarModel }
+
+    property real calendarContentOpacity: 1.0
+    property real calendarContentOffset: 0.0
+    property int calendarAnimDirection: 1
+
+    SequentialAnimation {
+        id: calendarTransitionAnim
+        ParallelAnimation {
+            NumberAnimation { target: window; property: "calendarContentOpacity"; to: 0.0; duration: 200; easing.type: Easing.InSine }
+            NumberAnimation { target: window; property: "calendarContentOffset"; to: -20 * calendarAnimDirection; duration: 200; easing.type: Easing.InSine }
+        }
+        ScriptAction {
+            script: {
+                window.monthOffset = window.targetMonthOffset;
+                window.calendarContentOffset = 20 * calendarAnimDirection;
+            }
+        }
+        ParallelAnimation {
+            NumberAnimation { target: window; property: "calendarContentOpacity"; to: 1.0; duration: 350; easing.type: Easing.OutQuart }
+            NumberAnimation { target: window; property: "calendarContentOffset"; to: 0.0; duration: 350; easing.type: Easing.OutQuart }
+        }
+    }
+
+    function setMonthOffset(newOffset) {
+        if (newOffset === window.targetMonthOffset) return;
+
+        if (calendarTransitionAnim.running) {
+            calendarTransitionAnim.stop();
+            window.monthOffset = window.targetMonthOffset;
+        }
+
+        window.calendarAnimDirection = newOffset > window.targetMonthOffset ? 1 : -1;
+        window.targetMonthOffset = newOffset;
+        calendarTransitionAnim.start();
+    }
 
     function updateCalendarGrid() {
         let d = new Date(window.currentTime.getTime());
@@ -239,7 +413,6 @@ Item {
     onMonthOffsetChanged: updateCalendarGrid()
 
     Component.onCompleted: {
-        introState = 1.0;
         updateCalendarGrid();
     }
 
@@ -248,8 +421,8 @@ Item {
     // -------------------------------------------------------------------------
     Item {
         anchors.fill: parent
-        scale: 0.90 + (0.10 * introState)
-        opacity: introState
+        scale: 0.95 + (0.05 * introMain)
+        opacity: introMain
 
         Rectangle {
             anchors.fill: parent
@@ -262,37 +435,34 @@ Item {
             // =======================================================
             // AMBIENT WIDGET COLOR BLOBS (Spread Out)
             // =======================================================
-            // Primary Weather Blob (Kept true weather color for ambient feel)
             Rectangle {
                 width: parent.width * 0.5; height: width; radius: width / 2
                 x: (parent.width * 0.75 - width / 2) + Math.cos(window.globalOrbitAngle * 1.5) * 350
                 y: (parent.height * 0.3 - height / 2) + Math.sin(window.globalOrbitAngle * 1.5) * 200
-                opacity: 0.025
+                opacity: 0.025 * window.introAmbient
                 color: window.activeWeatherHex
                 Behavior on color { ColorAnimation { duration: 1000 } }
             }
 
-            // Time of Day Blob
             Rectangle {
                 width: parent.width * 0.6; height: width; radius: width / 2
                 x: (parent.width * 0.25 - width / 2) + Math.sin(window.globalOrbitAngle * 1.2) * -300
                 y: (parent.height * 0.7 - height / 2) + Math.cos(window.globalOrbitAngle * 1.2) * -250
-                opacity: 0.02
+                opacity: 0.02 * window.introAmbient
                 color: window.timeColor
                 Behavior on color { ColorAnimation { duration: 1000 } }
             }
 
-            // Time Accent Blob
             Rectangle {
                 width: parent.width * 0.45; height: width; radius: width / 2
                 x: (parent.width * 0.5 - width / 2) + Math.cos(window.globalOrbitAngle * -1.8) * 400
                 y: (parent.height * 0.5 - height / 2) + Math.sin(window.globalOrbitAngle * -1.8) * -350
-                opacity: 0.015
+                opacity: 0.015 * window.introAmbient
                 color: window.timeAccent
                 Behavior on color { ColorAnimation { duration: 1000 } }
             }
 
-            // Big Parallax Weather Icon
+            // Big Parallax Weather Icon (Tied to Weather Transition)
             Text {
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: -100
@@ -300,7 +470,7 @@ Item {
                 font.family: "Iosevka Nerd Font"
                 font.pixelSize: 800
                 color: window.activeWeatherHex
-                opacity: 0.03 + (0.01 * Math.sin(window.globalOrbitAngle * 4))
+                opacity: (0.03 + (0.01 * Math.sin(window.globalOrbitAngle * 4))) * window.introAmbient * window.weatherContentOpacity
                 z: 0
                 Behavior on color { ColorAnimation { duration: 1500 } }
                 
@@ -310,7 +480,11 @@ Item {
                     NumberAnimation { to: -20; duration: 6000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: 0; duration: 6000; easing.type: Easing.InOutSine }
                 }
-                transform: Translate { y: parent.drift }
+                
+                transform: [
+                    Translate { y: parent.drift },
+                    Translate { x: window.weatherContentOffset * 2 } // Exaggerated shift for background depth
+                ]
             }
 
             // =======================================================
@@ -322,13 +496,20 @@ Item {
                 width: 1; height: 1 
                 z: 5
 
+                opacity: introClock
+                scale: 0.85 + (0.15 * introClock)
+
                 property real levitation: 0
                 SequentialAnimation on levitation {
                     loops: Animation.Infinite
                     NumberAnimation { to: -15; duration: 4000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: 0; duration: 4000; easing.type: Easing.InOutSine }
                 }
-                transform: Translate { y: parent.levitation }
+                
+                transform: [
+                    Translate { y: 25 * (1.0 - introClock) },
+                    Translate { y: parent.levitation }
+                ]
 
                 Canvas {
                     z: -10
@@ -397,75 +578,85 @@ Item {
                     }
                 }
 
-                // TRUE 3D ORBITAL HOURLY FORECAST
-                Repeater {
-                    id: hourRepeater
-                    model: window.weatherData && window.weatherData.forecast[window.weatherView] && window.weatherData.forecast[window.weatherView].hourly ? window.weatherData.forecast[window.weatherView].hourly.slice(0, 8) : []
+                // TRUE 3D ORBITAL HOURLY FORECAST (Tied to Spin Transition)
+                Item {
+                    anchors.fill: parent
+                    opacity: window.weatherContentOpacity
                     
-                    delegate: Item {
-                        property int mCount: hourRepeater.count
-                        property bool isToday: window.weatherView === 0
-                        property bool isHighlighted: isToday && index === window.activeHourIndex
-                        
-                        property real rx: 320
-                        property real ry: 140
-                        
-                        property int relIdx: isToday ? (index - window.activeHourIndex) : index
-                        
-                        property real targetAngleDeg: isToday ? (65 + (relIdx * 30)) : (index * (360 / Math.max(1, mCount)))
-                        
-                        property real orbitOffset: isToday ? 0 : (window.globalOrbitAngle * (180 / Math.PI) * -1.5)
-                        property real osc: isToday ? (Math.sin(window.globalOrbitAngle * 10 + index) * 5) : 0 
-                        
-                        property real rad: (targetAngleDeg + orbitOffset + osc) * (Math.PI / 180)
+                    // Added Scale property to give a z-depth shrink effect when spinning
+                    scale: window.transitionScale 
+                    transform: Translate { x: window.weatherContentOffset * 1.5 }
 
-                        x: Math.cos(rad) * rx - width/2
-                        y: Math.sin(rad) * ry - height/2
-                        z: Math.sin(rad) * 100 
+                    Repeater {
+                        id: hourRepeater
+                        model: window.weatherData && window.weatherData.forecast[window.weatherView] && window.weatherData.forecast[window.weatherView].hourly ? window.weatherData.forecast[window.weatherView].hourly.slice(0, 8) : []
                         
-                        scale: isHighlighted ? 1.4 : (isToday ? (0.95 + 0.20 * Math.sin(rad)) : (0.90 + 0.25 * Math.sin(rad)))
-                        opacity: isHighlighted ? 1.0 : (isToday ? (0.7 + 0.3 * ((Math.sin(rad) + 1) / 2)) : (0.65 + 0.35 * ((Math.sin(rad) + 1) / 2)))
+                        delegate: Item {
+                            property int mCount: hourRepeater.count
+                            property bool isToday: window.weatherView === 0
+                            property bool isHighlighted: isToday && index === window.activeHourIndex
+                            
+                            property real rx: 320
+                            property real ry: 140
+                            
+                            property int relIdx: isToday ? (index - window.activeHourIndex) : index
+                            
+                            property real targetAngleDeg: isToday ? (65 + (relIdx * 30)) : (index * (360 / Math.max(1, mCount)))
+                            
+                            property real orbitOffset: isToday ? 0 : (window.globalOrbitAngle * (180 / Math.PI) * -1.5)
+                            property real osc: isToday ? (Math.sin(window.globalOrbitAngle * 10 + index) * 5) : 0 
+                            
+                            // Integrated window.transitionSpin directly into the final angle calculation
+                            property real rad: (targetAngleDeg + orbitOffset + osc + window.transitionSpin) * (Math.PI / 180)
 
-                        width: 56; height: 95
-                        
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 28
-                            color: isHighlighted ? window.textAccent : (hrMa.containsMouse ? window.surface2 : window.surface0)
-                            border.color: isHighlighted ? "transparent" : (hrMa.containsMouse ? window.textAccent : window.surface1)
-                            border.width: 1
+                            x: Math.cos(rad) * rx - width/2
+                            y: Math.sin(rad) * ry - height/2
+                            z: Math.sin(rad) * 100 
                             
-                            Behavior on color { ColorAnimation { duration: 200 } }
+                            scale: isHighlighted ? 1.4 : (isToday ? (0.95 + 0.20 * Math.sin(rad)) : (0.90 + 0.25 * Math.sin(rad)))
+                            opacity: isHighlighted ? 1.0 : (isToday ? (0.7 + 0.3 * ((Math.sin(rad) + 1) / 2)) : (0.65 + 0.35 * ((Math.sin(rad) + 1) / 2)))
+
+                            width: 56; height: 95
                             
-                            ColumnLayout {
-                                anchors.centerIn: parent 
-                                spacing: 4
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 28
+                                color: isHighlighted ? window.textAccent : (hrMa.containsMouse ? window.surface2 : window.surface0)
+                                border.color: isHighlighted ? "transparent" : (hrMa.containsMouse ? window.textAccent : window.surface1)
+                                border.width: 1
                                 
-                                Text { 
-                                    Layout.alignment: Qt.AlignHCenter
-                                    text: modelData.time
-                                    font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: 12
-                                    color: isHighlighted ? window.base : (hrMa.containsMouse ? window.text : window.overlay1)
-                                }
+                                Behavior on color { ColorAnimation { duration: 200 } }
                                 
-                                Text { 
-                                    Layout.alignment: Qt.AlignHCenter
-                                    text: modelData.icon || (window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].icon : "")
-                                    font.family: "Iosevka Nerd Font"; font.pixelSize: 18
-                                    color: isHighlighted ? window.base : (modelData.hex || window.text)
+                                ColumnLayout {
+                                    anchors.centerIn: parent 
+                                    spacing: 4
                                     
-                                    transform: Translate { y: hrMa.containsMouse ? -3 : 0 }
-                                    Behavior on transform { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                                }
-                                
-                                Text { 
-                                    Layout.alignment: Qt.AlignHCenter; text: modelData.temp + "°"
-                                    font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: 14
-                                    color: isHighlighted ? window.base : window.text 
+                                    Text { 
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: modelData.time
+                                        font.family: "JetBrains Mono"; font.weight: Font.Bold; font.pixelSize: 12
+                                        color: isHighlighted ? window.base : (hrMa.containsMouse ? window.text : window.overlay1)
+                                    }
+                                    
+                                    Text { 
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: modelData.icon || (window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].icon : "")
+                                        font.family: "Iosevka Nerd Font"; font.pixelSize: 18
+                                        color: isHighlighted ? window.base : (modelData.hex || window.text)
+                                        
+                                        transform: Translate { y: hrMa.containsMouse ? -3 : 0 }
+                                        Behavior on transform { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                    }
+                                    
+                                    Text { 
+                                        Layout.alignment: Qt.AlignHCenter; text: modelData.temp + "°"
+                                        font.family: "JetBrains Mono"; font.weight: Font.Black; font.pixelSize: 14
+                                        color: isHighlighted ? window.base : window.text 
+                                    }
                                 }
                             }
+                            MouseArea { id: hrMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor }
                         }
-                        MouseArea { id: hrMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor }
                     }
                 }
             }
@@ -486,6 +677,9 @@ Item {
                 border.width: 1
                 z: 10 
 
+                opacity: introCalendar
+                transform: Translate { x: -40 * (1.0 - introCalendar) }
+
                 HoverHandler { id: calHover }
 
                 ColumnLayout {
@@ -496,14 +690,25 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
                         
-                        // Spacer to maintain perfect center alignment for the month text
-                        Item { width: 32; height: 32 }
+                        // "Return to Today" Home Button
+                        Rectangle {
+                            width: 32; height: 32; radius: 16
+                            color: homeMa.containsMouse ? window.surface1 : "transparent"
+                            opacity: window.targetMonthOffset !== 0 ? 1.0 : 0.0
+                            visible: opacity > 0
+                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                            Text { anchors.centerIn: parent; text: "󰃭"; font.family: "Iosevka Nerd Font"; color: window.text; font.pixelSize: 16 }
+                            MouseArea { 
+                                id: homeMa; anchors.fill: parent; hoverEnabled: window.targetMonthOffset !== 0; 
+                                onClicked: if (window.targetMonthOffset !== 0) window.setMonthOffset(0) 
+                            }
+                        }
 
                         Rectangle {
                             width: 32; height: 32; radius: 16
                             color: prevMa.containsMouse ? window.surface1 : "transparent"
                             Text { anchors.centerIn: parent; text: ""; font.family: "Iosevka Nerd Font"; color: window.text; font.pixelSize: 16 }
-                            MouseArea { id: prevMa; anchors.fill: parent; hoverEnabled: true; onClicked: window.monthOffset-- }
+                            MouseArea { id: prevMa; anchors.fill: parent; hoverEnabled: true; onClicked: window.setMonthOffset(window.targetMonthOffset - 1) }
                         }
                         
                         Text {
@@ -514,16 +719,18 @@ Item {
                             font.pixelSize: 16
                             color: window.text
                             horizontalAlignment: Text.AlignHCenter
+                            
+                            opacity: window.calendarContentOpacity
+                            transform: Translate { x: window.calendarContentOffset }
                         }
 
                         Rectangle {
                             width: 32; height: 32; radius: 16
                             color: nextMa.containsMouse ? window.surface1 : "transparent"
                             Text { anchors.centerIn: parent; text: ""; font.family: "Iosevka Nerd Font"; color: window.text; font.pixelSize: 16 }
-                            MouseArea { id: nextMa; anchors.fill: parent; hoverEnabled: true; onClicked: window.monthOffset++ }
+                            MouseArea { id: nextMa; anchors.fill: parent; hoverEnabled: true; onClicked: window.setMonthOffset(window.targetMonthOffset + 1) }
                         }
 
-                        // THE NEW DIARY BUTTON
                         Rectangle {
                             width: 32; height: 32; radius: 16
                             color: diaryMa.containsMouse ? window.surface1 : "transparent"
@@ -559,6 +766,9 @@ Item {
                         rowSpacing: 6
                         columnSpacing: 6
 
+                        opacity: window.calendarContentOpacity
+                        transform: Translate { x: window.calendarContentOffset }
+
                         Repeater {
                             model: calendarModel
                             Rectangle {
@@ -588,23 +798,6 @@ Item {
                             }
                         }
                     }
-                    
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 20
-                        visible: window.monthOffset !== 0
-                        
-                        Text {
-                            anchors.centerIn: parent
-                            text: "Return to Today"
-                            font.family: "JetBrains Mono"
-                            font.weight: Font.Bold
-                            font.pixelSize: 14
-                            color: resetMa.containsMouse ? window.text : window.overlay0
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                        }
-                        MouseArea { id: resetMa; anchors.fill: parent; hoverEnabled: true; onClicked: window.monthOffset = 0 }
-                    }
                 }
             }
 
@@ -619,6 +812,9 @@ Item {
                 height: 420
                 z: 10 
 
+                opacity: introWeather
+                transform: Translate { x: 40 * (1.0 - introWeather) }
+
                 ColumnLayout {
                     anchors.fill: parent
                     spacing: 20
@@ -626,10 +822,12 @@ Item {
                     RowLayout {
                         Layout.alignment: Qt.AlignRight | Qt.AlignTop
                         spacing: 20
+                        opacity: window.weatherContentOpacity
+                        transform: Translate { x: window.weatherContentOffset }
                         
                         MouseArea { 
                             id: wPrevMa; width: 30; height: 30; hoverEnabled: true
-                            onClicked: if (window.weatherView > 0) window.weatherView-- 
+                            onClicked: window.setWeatherView(window.targetWeatherView - 1) 
                             
                             property real pulseOffset: 0
                             SequentialAnimation on pulseOffset {
@@ -656,7 +854,7 @@ Item {
                         
                         MouseArea { 
                             id: wNextMa; width: 30; height: 30; hoverEnabled: true
-                            onClicked: if (window.weatherView < 4 && window.weatherData) window.weatherView++ 
+                            onClicked: window.setWeatherView(window.targetWeatherView + 1)
                             
                             property real pulseOffset: 0
                             SequentialAnimation on pulseOffset {
@@ -678,14 +876,19 @@ Item {
                         Layout.alignment: Qt.AlignRight 
                         spacing: -5
                         
+                        // BIG TEMPERATURE TEXT - Anchored so it doesn't slide with the wrapper
                         Text {
                             Layout.alignment: Qt.AlignHCenter 
-                            text: window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].max + "°" : ""
+                            text: Math.round(window.displayedTemp) + "°"
                             font.family: "JetBrains Mono"
                             font.weight: Font.Black
                             font.pixelSize: 84
-                            color: window.text
-                            style: Text.Outline; styleColor: Qt.alpha(window.crust, 0.4)
+                            color: window.tempGlowColor
+                            style: Text.Outline; 
+                            styleColor: window.isTempAnimating ? Qt.alpha(window.tempGlowColor, 0.5) : Qt.alpha(window.crust, 0.4)
+                            
+                            Behavior on color { ColorAnimation { duration: 300 } }
+                            Behavior on styleColor { ColorAnimation { duration: 300 } }
                         }
                         
                         Text {
@@ -696,6 +899,9 @@ Item {
                             font.pixelSize: 16
                             color: window.textAccent
                             Behavior on color { ColorAnimation { duration: 1000 } }
+                            
+                            opacity: window.weatherContentOpacity
+                            transform: Translate { x: window.weatherContentOffset }
                         }
                     }
 
@@ -706,6 +912,8 @@ Item {
                         Layout.alignment: Qt.AlignRight
                         Layout.rightMargin: 10
                         spacing: 20
+                        opacity: window.weatherContentOpacity
+                        transform: Translate { x: window.weatherContentOffset }
 
                         Repeater {
                             model: window.weatherData && window.weatherData.forecast[window.weatherView] ? [
@@ -766,7 +974,7 @@ Item {
                                                 ctx.arc(r, r, r - 4, 0, animProgress * 2 * Math.PI);
                                                 var grad = ctx.createLinearGradient(0, 0, width, height);
                                                 grad.addColorStop(0, window.timeAccent);
-                                                grad.addColorStop(1, window.sapphire); // Using Matugen blue tone
+                                                grad.addColorStop(1, window.sapphire);
                                                 ctx.strokeStyle = grad;
                                                 ctx.lineWidth = 4;
                                                 ctx.lineCap = "round";
@@ -824,6 +1032,9 @@ Item {
                 anchors.bottom: parent.bottom
                 height: 240
                 z: 20 
+
+                opacity: introSchedule
+                transform: Translate { y: 50 * (1.0 - introSchedule) }
 
                 Rectangle {
                     anchors.fill: parent

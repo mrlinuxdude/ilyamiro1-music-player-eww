@@ -18,6 +18,7 @@
   environment.systemPackages = with pkgs; [
     wget 
     taskwarrior3
+    file
     git
     killall
     btop
