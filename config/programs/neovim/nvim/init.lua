@@ -20,41 +20,77 @@ vim.g.maplocalleader = ' '
 
 -- DYNAMIC THEME LOGIC
 _G.reload_matugen_colors = function()
-  -- Point directly to the neovim config directory
-  local matugen_path = vim.fn.stdpath("config") .. "/matugen_colors.lua"
-  local overrides = {}
-  
-  if vim.fn.filereadable(matugen_path) == 1 then
-    -- dofile evaluates the file fresh every time, bypassing require's caching
-    local ok, colors = pcall(dofile, matugen_path)
-    if ok and type(colors) == "table" then
-      overrides = { all = colors }
+  -- vim.schedule ensures this massive UI update runs safely on the main event loop
+  -- otherwise RPC calls can silently fail to update the screen.
+  vim.schedule(function()
+    local matugen_path = vim.fn.stdpath("config") .. "/matugen_colors.lua"
+    local overrides = {}
+    
+    if vim.fn.filereadable(matugen_path) == 1 then
+      -- loadfile is safer than dofile here as it compiles the chunk without executing it immediately
+      local chunk = loadfile(matugen_path)
+      if chunk then
+        local colors = chunk()
+        if type(colors) == "table" then
+          -- Cover both bases: 'all' and the specific 'mocha' flavour
+          overrides = { all = colors, mocha = colors }
+        end
+      end
     end
-  end
 
-  require("catppuccin").setup({
-    flavour = "mocha",
-    color_overrides = overrides,
-    integrations = {
-      cmp = true,
-      gitsigns = true,
-      nvimtree = true,
-      treesitter = true,
-      bufferline = true, 
-      telescope = { enabled = true },
-      indent_blankline = { enabled = true },
-      native_lsp = {
-        enabled = true,
-        underlines = {
-          errors = { "undercurl" },
-          hints = { "undercurl" },
-          warnings = { "undercurl" },
-          information = { "undercurl" },
+    -- Aggressively clear ALL catppuccin and lualine modules from cache
+    for k, _ in pairs(package.loaded) do
+      if k:match("^catppuccin") or k:match("^lualine") then
+        package.loaded[k] = nil
+      end
+    end
+
+    -- Nuke Neovim's existing highlights
+    vim.cmd("hi clear")
+    if vim.fn.exists("syntax_on") then
+      vim.cmd("syntax reset")
+    end
+    vim.g.colors_name = nil
+
+    require("catppuccin").setup({
+      flavour = "mocha",
+      compile = { enabled = false }, -- MUST be false for dynamic overrides
+      color_overrides = overrides,
+      integrations = {
+        cmp = true,
+        gitsigns = true,
+        nvimtree = true,
+        treesitter = true,
+        bufferline = true, 
+        telescope = { enabled = true },
+        indent_blankline = { enabled = true },
+        native_lsp = {
+          enabled = true,
+          underlines = {
+            errors = { "undercurl" },
+            hints = { "undercurl" },
+            warnings = { "undercurl" },
+            information = { "undercurl" },
+          },
         },
       },
-    },
-  })
-  vim.cmd.colorscheme("catppuccin")
+    })
+    
+    -- Re-apply the colorscheme
+    vim.cmd("colorscheme catppuccin")
+
+    -- Reload lualine dynamically
+    local ok_lualine, lualine = pcall(require, "lualine")
+    if ok_lualine then
+      lualine.setup { options = { theme = 'catppuccin' } }
+    end
+    
+    -- Force Neovim to redraw
+    vim.cmd("redraw!")
+
+    -- Provide visual confirmation that the RPC command successfully triggered the function
+    vim.notify("Matugen colors reloaded!", vim.log.levels.INFO)
+  end)
 end
 
 -- Initialize the colors immediately on startup
@@ -66,7 +102,6 @@ require('nvim-treesitter.configs').setup {
   indent = { enable = true },
 }
 
-require('lualine').setup { options = { theme = 'catppuccin' } }
 require("ibl").setup()
 require('gitsigns').setup()
 require('nvim-autopairs').setup({})
@@ -190,3 +225,17 @@ setup_server("lua_ls", {
     },
   }
 })
+
+-- FILE WATCHER: Automatically reload when Matugen updates the file
+local uv = vim.uv or vim.loop -- Compat for Nvim 0.9 and 0.10+
+local matugen_path = vim.fn.stdpath("config") .. "/matugen_colors.lua"
+
+local watcher = uv.new_fs_event()
+watcher:start(matugen_path, {}, vim.schedule_wrap(function(err, filename, events)
+  if not err then
+    -- Add a tiny delay to ensure Matugen has finished writing the file
+    vim.defer_fn(function()
+      _G.reload_matugen_colors()
+    end, 50) 
+  end
+end))

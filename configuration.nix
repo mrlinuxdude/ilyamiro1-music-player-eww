@@ -69,7 +69,7 @@
   users.users.ilyamiro = {
     isNormalUser = true;
     description = "ilyamiro";
-    extraGroups = [ "networkmanager" "wheel" "video" "adbusers"]; # Added "video" group
+    extraGroups = [ "networkmanager" "wheel" "video" "adbusers" "libvirtd"]; 
     packages = with pkgs; [
     #  thunderbird
     ];
@@ -260,6 +260,10 @@
     ];
     
   };
+  # Virtualization
+  virtualisation.libvirtd.enable = true;
+  programs.virt-manager.enable = true;
+	
   # Bootloader and kernel
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;

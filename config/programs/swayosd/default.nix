@@ -6,11 +6,8 @@
    ]; 
 
    services.swayosd = {
-  	enable = true;
-  	topMargin = 0.9;
-        stylePath = "/etc/nixos/config/programs/swayosd/style.css";
-};
-
-
+      enable = true;
+      topMargin = 0.9;
+      stylePath = "${config.home.homeDirectory}/.config/swayosd/style.css";
+   };
 }
-

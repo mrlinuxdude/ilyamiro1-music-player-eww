@@ -38,6 +38,16 @@ PanelWindow {
     property bool startupCascadeFinished: false
     Timer { interval: 1000; running: true; onTriggered: barWindow.startupCascadeFinished = true }
     
+    // Data gating to prevent startup layout jumping
+    property bool sysPollerLoaded: false
+    property bool fastPollerLoaded: false
+    
+    // FIXED: Only wait for the instant data to load the UI. 
+    // The slow network scripts will populate smoothly when they finish.
+    property bool isDataReady: fastPollerLoaded
+    // Failsafe: Force the layout to show after 600ms even if fast poller hangs
+    Timer { interval: 600; running: true; onTriggered: barWindow.isDataReady = true }
+    
     property string timeStr: ""
     property string fullDateStr: ""
     property int typeInIndex: 0
@@ -65,7 +75,6 @@ PanelWindow {
     
     property string kbLayout: "us"
     
-    // REPLACED: Raw array removed to prevent flickering. Native ListModel used instead.
     ListModel { id: workspacesModel }
     
     property var musicData: { "status": "Stopped", "title": "", "artUrl": "", "timeStr": "" }
@@ -104,7 +113,6 @@ PanelWindow {
                 if (txt !== "") {
                     try { 
                         let newData = JSON.parse(txt);
-                        // SMART SYNC: Updates properties without destroying QML items to stop flicker
                         if (workspacesModel.count !== newData.length) {
                             workspacesModel.clear();
                             for (let i = 0; i < newData.length; i++) {
@@ -169,6 +177,7 @@ PanelWindow {
                     barWindow.batIcon = lines[7];
                     barWindow.batStatus = lines[8];
                 }
+                barWindow.sysPollerLoaded = true; // Signal that slow data has arrived
             }
         }
     }
@@ -192,6 +201,7 @@ PanelWindow {
                     barWindow.kbLayout = lines[2];
                     barWindow.isMuted = (lines[3].toLowerCase() === "true");
                 }
+                barWindow.fastPollerLoaded = true; // Gatekeeper release
             }
         }
     }
@@ -336,8 +346,8 @@ PanelWindow {
                 Layout.preferredWidth: targetWidth
                 visible: targetWidth > 0
                 opacity: workspacesModel.count > 0 ? 1 : 0
+                
                 Behavior on opacity { NumberAnimation { duration: 300 } }
-                Behavior on targetWidth { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
 
                 RowLayout {
                     id: wsLayout
@@ -360,12 +370,13 @@ PanelWindow {
                             
                             Layout.preferredHeight: 32; radius: 10
                             
+                            // UPDATED: Shifted to surface2 for occupied, and overlay0 for hover to increase contrast
                             color: stateLabel === "active" 
                                     ? mocha.mauve 
                                     : (isHovered 
-                                        ? Qt.rgba(mocha.surface2.r, mocha.surface2.g, mocha.surface2.b, 0.9) 
+                                        ? Qt.rgba(mocha.overlay0.r, mocha.overlay0.g, mocha.overlay0.b, 0.9) 
                                         : (stateLabel === "occupied" 
-                                            ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.9) 
+                                            ? Qt.rgba(mocha.surface2.r, mocha.surface2.g, mocha.surface2.b, 0.9) 
                                             : "transparent"))
 
                             scale: isHovered && stateLabel !== "active" ? 1.08 : 1.0
@@ -422,7 +433,6 @@ PanelWindow {
                     }
                 }
             }
-
             // Media Player 
             Rectangle {
                 id: mediaBox
@@ -436,7 +446,6 @@ PanelWindow {
                 visible: targetWidth > 0 || opacity > 0
                 opacity: barWindow.isMediaActive ? 1.0 : 0.0
 
-                // Premium smooth slide expansion
                 Behavior on targetWidth { NumberAnimation { duration: 700; easing.type: Easing.OutQuint } }
                 Behavior on opacity { NumberAnimation { duration: 400 } }
                 
@@ -448,7 +457,6 @@ PanelWindow {
                     height: parent.height
                     width: innerMediaLayout.implicitWidth
                     
-                    // Interior parallax slide effect
                     opacity: barWindow.isMediaActive ? 1.0 : 0.0
                     transform: Translate { 
                         x: barWindow.isMediaActive ? 0 : -20 
@@ -641,7 +649,7 @@ PanelWindow {
             }
             
             Timer {
-                running: barWindow.isStartupReady
+                running: barWindow.isStartupReady && barWindow.isDataReady
                 interval: 250
                 onTriggered: rightLayout.showLayout = true
             }
@@ -743,10 +751,10 @@ PanelWindow {
                 border.color: Qt.rgba(mocha.text.r, mocha.text.g, mocha.text.b, 0.08)
                 border.width: 1
                 color: Qt.rgba(mocha.base.r, mocha.base.g, mocha.base.b, 0.75)
+                clip: true
                 
                 property real targetWidth: sysLayout.implicitWidth + 20
                 Layout.preferredWidth: targetWidth
-                Behavior on targetWidth { NumberAnimation { duration: 500; easing.type: Easing.OutExpo } }
 
                 RowLayout {
                     id: sysLayout
@@ -770,10 +778,8 @@ PanelWindow {
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
 
-                        // Cascading entrance animation
                         property bool initAnimTrigger: false
-                        Component.onCompleted: { if (!barWindow.startupCascadeFinished) { kbtimer.start() } else { initAnimTrigger = true } }
-                        Timer { id: kbtimer; interval: 0; onTriggered: parent.initAnimTrigger = true }
+                        Timer { running: rightLayout.showLayout && !parent.initAnimTrigger; interval: 0; onTriggered: parent.initAnimTrigger = true }
                         opacity: initAnimTrigger ? 1 : 0
                         transform: Translate { y: parent.initAnimTrigger ? 0 : 15; Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                         Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
@@ -793,7 +799,6 @@ PanelWindow {
                         color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
                         clip: true
                         
-                        // Vibrant, guaranteed gradient contrast
                         Rectangle {
                             anchors.fill: parent
                             radius: 10
@@ -814,18 +819,20 @@ PanelWindow {
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
 
-                        // Cascading entrance animation
                         property bool initAnimTrigger: false
-                        Component.onCompleted: { if (!barWindow.startupCascadeFinished) { wiftimer.start() } else { initAnimTrigger = true } }
-                        Timer { id: wiftimer; interval: 50; onTriggered: parent.initAnimTrigger = true }
+                        Timer { running: rightLayout.showLayout && !parent.initAnimTrigger; interval: 50; onTriggered: parent.initAnimTrigger = true }
                         opacity: initAnimTrigger ? 1 : 0
                         transform: Translate { y: parent.initAnimTrigger ? 0 : 15; Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                         Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
-                        RowLayout { id: wifiLayoutRow; anchors.centerIn: parent; spacing: 8
+                        // FIXED: Collapse spacing and hide text until slow data is ready to prevent looking "turned off"
+                        RowLayout { id: wifiLayoutRow; anchors.centerIn: parent; spacing: wifiText.visible ? 8 : 0
                             Text { text: barWindow.wifiIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: barWindow.isWifiOn ? mocha.base : mocha.subtext0 }
                             Text { 
-                                text: barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off"; 
+                                id: wifiText
+                                // Wait for sysPollerLoaded before evaluating text so it doesn't default to "Off"
+                                text: barWindow.sysPollerLoaded ? (barWindow.isWifiOn ? (barWindow.wifiSsid !== "" ? barWindow.wifiSsid : "On") : "Off") : ""
+                                visible: text !== ""
                                 font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; 
                                 color: barWindow.isWifiOn ? mocha.base : mocha.text; 
                                 Layout.maximumWidth: 100; elide: Text.ElideRight 
@@ -842,7 +849,6 @@ PanelWindow {
                         clip: true
                         color: isHovered ? Qt.rgba(mocha.surface1.r, mocha.surface1.g, mocha.surface1.b, 0.6) : Qt.rgba(mocha.surface0.r, mocha.surface0.g, mocha.surface0.b, 0.4)
                         
-                        // Vibrant, guaranteed gradient contrast
                         Rectangle {
                             anchors.fill: parent
                             radius: 10
@@ -863,18 +869,19 @@ PanelWindow {
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
 
-                        // Cascading entrance animation
                         property bool initAnimTrigger: false
-                        Component.onCompleted: { if (!barWindow.startupCascadeFinished) { bttimer.start() } else { initAnimTrigger = true } }
-                        Timer { id: bttimer; interval: 100; onTriggered: parent.initAnimTrigger = true }
+                        Timer { running: rightLayout.showLayout && !parent.initAnimTrigger; interval: 100; onTriggered: parent.initAnimTrigger = true }
                         opacity: initAnimTrigger ? 1 : 0
                         transform: Translate { y: parent.initAnimTrigger ? 0 : 15; Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                         Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
 
-                        RowLayout { id: btLayoutRow; anchors.centerIn: parent; spacing: barWindow.btDevice !== "" ? 8 : 0
+                        // FIXED: Collapse spacing when there is no text so it initializes as a clean square
+                        RowLayout { id: btLayoutRow; anchors.centerIn: parent; spacing: btText.visible ? 8 : 0
                             Text { text: barWindow.btIcon; font.family: "Iosevka Nerd Font"; font.pixelSize: 16; color: barWindow.isBtOn ? mocha.base : mocha.subtext0 }
                             Text { 
-                                visible: barWindow.btDevice !== ""; text: barWindow.btDevice; 
+                                id: btText
+                                visible: text !== ""; 
+                                text: barWindow.sysPollerLoaded ? barWindow.btDevice : ""
                                 font.family: "JetBrains Mono"; font.pixelSize: 13; font.weight: Font.Black; 
                                 color: barWindow.isBtOn ? mocha.base : mocha.text; 
                                 Layout.maximumWidth: 100; elide: Text.ElideRight 
@@ -890,7 +897,6 @@ PanelWindow {
                         radius: 10; Layout.preferredHeight: sysLayout.pillHeight;
                         clip: true
 
-                        // New Dynamic Sound Background Gradient
                         Rectangle {
                             anchors.fill: parent
                             radius: 10
@@ -911,10 +917,8 @@ PanelWindow {
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
 
-                        // Cascading entrance animation
                         property bool initAnimTrigger: false
-                        Component.onCompleted: { if (!barWindow.startupCascadeFinished) { voltimer.start() } else { initAnimTrigger = true } }
-                        Timer { id: voltimer; interval: 150; onTriggered: parent.initAnimTrigger = true }
+                        Timer { running: rightLayout.showLayout && !parent.initAnimTrigger; interval: 150; onTriggered: parent.initAnimTrigger = true }
                         opacity: initAnimTrigger ? 1 : 0
                         transform: Translate { y: parent.initAnimTrigger ? 0 : 15; Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                         Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
@@ -940,7 +944,6 @@ PanelWindow {
                         radius: 10; Layout.preferredHeight: sysLayout.pillHeight;
                         clip: true
 
-                        // New Dynamic Battery Background Gradient (Only full gradient when charging or critical)
                         Rectangle {
                             anchors.fill: parent
                             radius: 10
@@ -961,10 +964,8 @@ PanelWindow {
                         Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutExpo } }
                         Behavior on color { ColorAnimation { duration: 200 } }
 
-                        // Cascading entrance animation
                         property bool initAnimTrigger: false
-                        Component.onCompleted: { if (!barWindow.startupCascadeFinished) { battimer.start() } else { initAnimTrigger = true } }
-                        Timer { id: battimer; interval: 200; onTriggered: parent.initAnimTrigger = true }
+                        Timer { running: rightLayout.showLayout && !parent.initAnimTrigger; interval: 200; onTriggered: parent.initAnimTrigger = true }
                         opacity: initAnimTrigger ? 1 : 0
                         transform: Translate { y: parent.initAnimTrigger ? 0 : 15; Behavior on y { NumberAnimation { duration: 500; easing.type: Easing.OutBack } } }
                         Behavior on opacity { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }

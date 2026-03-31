@@ -13,5 +13,4 @@ configuration {
     case-sensitive: 		false;
 }
 
-/* This points to your separate theme file */
 @theme "theme.rasi"

@@ -1,5 +1,4 @@
 [config]
-# Matugen strictly requires this block to exist at the top.
 reload_apps = false
 
 [templates.quickshell]
@@ -33,3 +32,15 @@ output_path = "~/.config/nvim/matugen_colors.lua"
 [templates.cava]
 input_path = "~/.config/matugen/templates/cava-colors.ini.template"
 output_path = "~/.config/cava/colors"
+
+[templates.swayosd]
+input_path = "~/.config/matugen/templates/swayosd.css.template"
+output_path = "~/.config/swayosd/style.css"
+
+[templates.swaync]
+input_path = "~/.config/matugen/templates/swaync.css.template"
+output_path = "~/.config/swaync/style.css"
+
+[templates.rofi]
+input_path = "~/.config/matugen/templates/rofi.rasi.template"
+output_path = "~/.config/rofi/theme.rasi"

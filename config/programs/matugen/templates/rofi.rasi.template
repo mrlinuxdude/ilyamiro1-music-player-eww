@@ -1,28 +1,26 @@
 * {
-    /* Catppuccin Mocha Palette */
-    bg-col:                 #1e1e2e;
-    bg-col-light:           #1e1e2e;
-    border-col:             #1e1e2e;
-    selected-col:           #1e1e2e;
-    blue:                   #89b4fa;
-    fg-col:                 #cdd6f4;
-    fg-col2:                #f38ba8;
-    grey:                   #6c7086;
-    surface0:               #313244;
-    surface1:               #45475a;
-    mauve:                  #cba6f7;
-    rosewater:              #f5e0dc;
+    /* Matugen Generated Palette */
+    bg-col:                 {{colors.surface.default.hex}};
+    bg-col-light:           {{colors.surface_container_low.default.hex}};
+    border-col:             {{colors.outline_variant.default.hex}};
+    selected-col:           {{colors.surface_container_high.default.hex}};
+    blue:                   {{colors.secondary.default.hex}};
+    fg-col:                 {{colors.on_surface.default.hex}};
+    fg-col2:                {{colors.error.default.hex}};
+    grey:                   {{colors.on_surface_variant.default.hex}};
+    surface0:               {{colors.surface_container.default.hex}};
+    surface1:               {{colors.surface_container_high.default.hex}};
+    mauve:                  {{colors.primary.default.hex}};
+    rosewater:              {{colors.tertiary.default.hex}};
     
     /* "Alive" Glass Colors */
-    bg-alpha:               #1e1e2ef2; 
-    surface-alpha:          #31324480; 
+    /* Matugen hex outputs #RRGGBB, appending f2/80 gives #RRGGBBAA */
+    bg-alpha:               {{colors.surface.default.hex}}f2; 
+    surface-alpha:          {{colors.surface_container_high.default.hex}}80; 
     
     /* GRADIENTS for "Cooler" Look */
-    /* A subtle gradient for selected items (Vertical: Surface -> Slightly Lighter) */
-    active-grad:            linear-gradient(to bottom, #45475a, #313244);
-    
-    /* A vibrant gradient for the active tab (Horizontal: Mauve -> Blue) */
-    tab-grad:               linear-gradient(to right, #cba6f7, #89b4fa);
+    active-grad:            linear-gradient(to bottom, {{colors.surface_container_high.default.hex}}, {{colors.surface_container.default.hex}});
+    tab-grad:               linear-gradient(to right, {{colors.primary.default.hex}}, {{colors.secondary.default.hex}});
 
     width: 1200px;
     font: "JetBrainsMono Nerd Font 11";

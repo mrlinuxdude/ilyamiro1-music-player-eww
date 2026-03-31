@@ -127,49 +127,49 @@ Item {
     ParallelAnimation {
         running: true
 
-        // 1. Base window fades, scales, and lifts smoothly
-        NumberAnimation { target: root; property: "introMain"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutQuart }
+        // 1. Base window fades, scales, and lifts smoothly (sped up by ~40ms)
+        NumberAnimation { target: root; property: "introMain"; from: 0; to: 1.0; duration: 760; easing.type: Easing.OutQuart }
 
         // 2. Cover art snaps in with a premium elastic feel
         SequentialAnimation {
-            PauseAnimation { duration: 100 }
-            NumberAnimation { target: root; property: "introCover"; from: 0; to: 1.0; duration: 850; easing.type: Easing.OutBack; easing.overshoot: 1.0 }
+            PauseAnimation { duration: 70 }
+            NumberAnimation { target: root; property: "introCover"; from: 0; to: 1.0; duration: 810; easing.type: Easing.OutBack; easing.overshoot: 1.0 }
         }
 
         // 3. Text block glides in smoothly
         SequentialAnimation {
-            PauseAnimation { duration: 180 }
-            NumberAnimation { target: root; property: "introText"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutQuart }
+            PauseAnimation { duration: 150 }
+            NumberAnimation { target: root; property: "introText"; from: 0; to: 1.0; duration: 760; easing.type: Easing.OutQuart }
         }
 
         // 4. Progress bar and Media Controls bounce in
         SequentialAnimation {
-            PauseAnimation { duration: 260 }
-            NumberAnimation { target: root; property: "introControls"; from: 0; to: 1.0; duration: 800; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
+            PauseAnimation { duration: 230 }
+            NumberAnimation { target: root; property: "introControls"; from: 0; to: 1.0; duration: 760; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
         }
 
         // 5. Separator line drops and fades
         SequentialAnimation {
-            PauseAnimation { duration: 340 }
-            NumberAnimation { target: root; property: "introSeparator"; from: 0; to: 1.0; duration: 700; easing.type: Easing.OutQuart }
+            PauseAnimation { duration: 310 }
+            NumberAnimation { target: root; property: "introSeparator"; from: 0; to: 1.0; duration: 660; easing.type: Easing.OutQuart }
         }
 
         // 6. EQ header follows down seamlessly
         SequentialAnimation {
-            PauseAnimation { duration: 400 }
-            NumberAnimation { target: root; property: "introEqHeader"; from: 0; to: 1.0; duration: 750; easing.type: Easing.OutQuart }
+            PauseAnimation { duration: 370 }
+            NumberAnimation { target: root; property: "introEqHeader"; from: 0; to: 1.0; duration: 710; easing.type: Easing.OutQuart }
         }
 
-        // 7. EQ Sliders sweep up in a sequential waterfall wave (Calculated inside the Delegate)
+        // 7. EQ Sliders sweep up in a sequential waterfall wave
         SequentialAnimation {
-            PauseAnimation { duration: 460 }
-            NumberAnimation { target: root; property: "introEqSliders"; from: 0; to: 1.0; duration: 900; easing.type: Easing.OutExpo }
+            PauseAnimation { duration: 430 }
+            NumberAnimation { target: root; property: "introEqSliders"; from: 0; to: 1.0; duration: 860; easing.type: Easing.OutExpo }
         }
 
         // 8. Presets finish the orchestration with a final pop
         SequentialAnimation {
-            PauseAnimation { duration: 580 }
-            NumberAnimation { target: root; property: "introPresets"; from: 0; to: 1.0; duration: 850; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
+            PauseAnimation { duration: 550 }
+            NumberAnimation { target: root; property: "introPresets"; from: 0; to: 1.0; duration: 810; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
         }
     }
 
@@ -619,20 +619,75 @@ Item {
                             opacity: root.introText
                             transform: Translate { x: 30 * (1 - root.introText) }
                             
-                            Text {
-                                text: root.musicData.title
-                                
-                                color: root.dynamicTextColor
-                                
-                                font.family: "JetBrains Mono"
-                                font.pixelSize: 20
-                                font.bold: true
-                                elide: Text.ElideRight
-                                maximumLineCount: 2
-                                wrapMode: Text.Wrap
+                            // HARD-LOCKED SEAMLESS INFINITE MARQUEE
+                            Item {
+                                id: titleClipRect
                                 Layout.fillWidth: true
-                                Behavior on color { ColorAnimation { duration: 600 } }
+                                Layout.preferredHeight: 28 
+                                clip: true
+
+                                // This is the distance between the end of the text and the clone
+                                property int marqueeSpacing: 60
+
+                                Item {
+                                    id: marqueeContainer
+                                    height: parent.height
+
+                                    Row {
+                                        spacing: titleClipRect.marqueeSpacing
+                                        Text {
+                                            id: titleTextMain
+                                            text: root.musicData.title
+                                            color: root.dynamicTextColor
+                                            font.family: "JetBrains Mono"
+                                            font.pixelSize: 20
+                                            font.bold: true
+                                            Behavior on color { ColorAnimation { duration: 600 } }
+
+                                            // Only animate if the text is physically wider than our container
+                                            onTextChanged: {
+                                                marqueeContainer.x = 0;
+                                                if (implicitWidth > titleClipRect.width) {
+                                                    titleAnim.restart();
+                                                } else {
+                                                    titleAnim.stop();
+                                                }
+                                            }
+                                        }
+                                        // The clone that creates the seamless endless loop
+                                        Text {
+                                            id: titleTextClone
+                                            text: root.musicData.title
+                                            color: root.dynamicTextColor
+                                            font.family: "JetBrains Mono"
+                                            font.pixelSize: 20
+                                            font.bold: true
+                                            visible: titleTextMain.implicitWidth > titleClipRect.width
+                                        }
+                                    }
+
+                                    SequentialAnimation on x {
+                                        id: titleAnim
+                                        loops: Animation.Infinite
+                                        running: titleTextMain.implicitWidth > titleClipRect.width
+
+                                        // 1. Stop for a few seconds in the initial position
+                                        PauseAnimation { duration: 3000 }
+                                        
+                                        // 2. Smoothly run left until the clone is exactly where the original started
+                                        NumberAnimation {
+                                            from: 0
+                                            to: -(titleTextMain.implicitWidth + titleClipRect.marqueeSpacing)
+                                            // The duration calculates dynamically to maintain a constant scroll speed
+                                            duration: (titleTextMain.implicitWidth + titleClipRect.marqueeSpacing) * 25
+                                        }
+                                        
+                                        // 3. Instantly snap back to 0 without stopping (creating the seamless loop)
+                                        PropertyAction { target: marqueeContainer; property: "x"; value: 0 }
+                                    }
+                                }
                             }
+
                             Text {
                                 text: root.musicData.artist ? "BY " + root.musicData.artist : ""
                                 color: root.subtext0 // Better matugen match
@@ -640,7 +695,9 @@ Item {
                                 font.pixelSize: 14
                                 font.bold: true
                                 elide: Text.ElideRight
+                                maximumLineCount: 1 // Strict 1 line
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: 20
                             }
                             RowLayout {
                                 spacing: 10

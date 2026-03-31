@@ -8,7 +8,6 @@
     ./monitors.nix
     ./window-rules.nix
 
-    ./hyprlock/default.nix
     ./hypridle.nix
   ];
 
@@ -22,7 +21,6 @@
     swww
     networkmanager_dmenu
     wl-clipboard
-    hyprshot
     fd
     qt6.qtmultimedia
     qt6.qt5compat

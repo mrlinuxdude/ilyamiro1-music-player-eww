@@ -136,8 +136,8 @@ Item {
                 PauseAnimation { duration: 500 }
                 NumberAnimation { target: window; property: "introSchedule"; from: 0; to: 1.0; duration: 900; easing.type: Easing.OutExpo }
             }
-    	}
-    	ScriptAction { script: window.startupComplete = true }
+        }
+        ScriptAction { script: window.startupComplete = true }
     }
 
     ParallelAnimation {
@@ -491,6 +491,7 @@ Item {
             // CENTRAL HERO: THE BREATHING TIME HUB & 3D HOURLY ORBIT
             // =======================================================
             Item {
+                id: centralHub
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: -100
                 width: 1; height: 1 
@@ -505,26 +506,65 @@ Item {
                     NumberAnimation { to: -15; duration: 4000; easing.type: Easing.InOutSine }
                     NumberAnimation { to: 0; duration: 4000; easing.type: Easing.InOutSine }
                 }
+
+                property real orbitBreath: 1.0
+                SequentialAnimation on orbitBreath {
+                    loops: Animation.Infinite
+                    running: true
+                    NumberAnimation { to: 1.035; duration: 3500; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 1.0; duration: 3500; easing.type: Easing.InOutSine }
+                }
+
+                // 3D Perspective Wobble (Pitch, Yaw, Roll)
+                property real pitchBreath: 0
+                SequentialAnimation on pitchBreath {
+                    loops: Animation.Infinite; running: true
+                    NumberAnimation { to: 3.5; duration: 4200; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -3.5; duration: 4200; easing.type: Easing.InOutSine }
+                }
+
+                property real yawBreath: 0
+                SequentialAnimation on yawBreath {
+                    loops: Animation.Infinite; running: true
+                    NumberAnimation { to: 2.5; duration: 5100; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -2.5; duration: 5100; easing.type: Easing.InOutSine }
+                }
+
+                property real rollBreath: 0
+                SequentialAnimation on rollBreath {
+                    loops: Animation.Infinite; running: true
+                    NumberAnimation { to: 1.5; duration: 5800; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: -1.5; duration: 5800; easing.type: Easing.InOutSine }
+                }
                 
                 transform: [
                     Translate { y: 25 * (1.0 - introClock) },
-                    Translate { y: parent.levitation }
+                    Translate { y: centralHub.levitation },
+                    Rotation { axis { x: 1; y: 0; z: 0 } angle: centralHub.pitchBreath },
+                    Rotation { axis { x: 0; y: 1; z: 0 } angle: centralHub.yawBreath },
+                    Rotation { axis { x: 0; y: 0; z: 1 } angle: centralHub.rollBreath }
                 ]
 
                 Canvas {
                     z: -10
-                    x: -320
-                    y: -140
-                    width: 640
-                    height: 280
+                    x: -400   // Widened to prevent clipping when scaled
+                    y: -200   // Heightened to prevent clipping when scaled
+                    width: 800
+                    height: 400
                     opacity: 0.25
+
+                    property real currentScale: centralHub.orbitBreath
+                    onCurrentScaleChanged: requestPaint()
+
                     onPaint: {
                         var ctx = getContext("2d");
                         ctx.clearRect(0, 0, width, height);
                         ctx.beginPath();
+                        var currentRx = 320 * currentScale;
+                        var currentRy = 140 * currentScale;
                         for (var i = 0; i <= Math.PI * 2; i += 0.05) {
-                            var xx = width/2 + Math.cos(i) * 320;
-                            var yy = height/2 + Math.sin(i) * 140;
+                            var xx = width/2 + Math.cos(i) * currentRx;
+                            var yy = height/2 + Math.sin(i) * currentRy;
                             if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
                         }
                         ctx.strokeStyle = window.textAccent;
@@ -596,8 +636,8 @@ Item {
                             property bool isToday: window.weatherView === 0
                             property bool isHighlighted: isToday && index === window.activeHourIndex
                             
-                            property real rx: 320
-                            property real ry: 140
+                            property real rx: 320 * centralHub.orbitBreath
+                            property real ry: 140 * centralHub.orbitBreath
                             
                             property int relIdx: isToday ? (index - window.activeHourIndex) : index
                             
@@ -822,8 +862,6 @@ Item {
                     RowLayout {
                         Layout.alignment: Qt.AlignRight | Qt.AlignTop
                         spacing: 20
-                        opacity: window.weatherContentOpacity
-                        transform: Translate { x: window.weatherContentOffset }
                         
                         MouseArea { 
                             id: wPrevMa; width: 30; height: 30; hoverEnabled: true
@@ -845,6 +883,8 @@ Item {
                         }
                         
                         Text {
+                            Layout.preferredWidth: 110 // Fixed width so the buttons don't jump around
+                            horizontalAlignment: Text.AlignHCenter // Keeps the day name centered between the buttons
                             text: window.weatherData && window.weatherData.forecast[window.weatherView] ? window.weatherData.forecast[window.weatherView].day_full.toUpperCase() : "LOADING..."
                             font.family: "JetBrains Mono"
                             font.weight: Font.Black

@@ -117,6 +117,9 @@ handle_network_prep() {
 # -----------------------------------------------------------------------------
 # ENSURE MASTER WINDOW & TOP BAR ARE ALIVE (ZOMBIE WATCHDOG)
 # -----------------------------------------------------------------------------
+MAIN_QML_PATH="$HOME/.config/hypr/scripts/quickshell/Main.qml"
+BAR_QML_PATH="$HOME/.config/hypr/scripts/quickshell/TopBar.qml"
+
 QS_PID=$(pgrep -f "quickshell.*Main\.qml")
 WIN_EXISTS=$(hyprctl clients -j | grep "qs-master")
 BAR_PID=$(pgrep -f "quickshell.*TopBar\.qml")
@@ -125,7 +128,9 @@ if [[ -z "$QS_PID" ]] || [[ -z "$WIN_EXISTS" ]]; then
     if [[ -n "$QS_PID" ]]; then
         kill -9 $QS_PID 2>/dev/null
     fi
-    quickshell -p "$QS_DIR/Main.qml" >/dev/null 2>&1 &
+    
+    # Bypass NixOS symlink resolution by using the direct ~/.config path
+    quickshell -p "$MAIN_QML_PATH" >/dev/null 2>&1 &
     disown
     
     for _ in {1..20}; do
@@ -138,7 +143,7 @@ if [[ -z "$QS_PID" ]] || [[ -z "$WIN_EXISTS" ]]; then
 fi
 
 if [[ -z "$BAR_PID" ]]; then
-    quickshell -p "$QS_DIR/TopBar.qml" >/dev/null 2>&1 &
+    quickshell -p "$BAR_QML_PATH" >/dev/null 2>&1 &
     disown
 fi
 
