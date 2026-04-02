@@ -4,7 +4,7 @@
 
 ## I AM CURRENTLY LOOKING FOR INSTALL SCRIPTS TESTERS FOR ARCH LINUX AND ITS DERIVATIVES. REACH OUT TO ME FOR INFORMATION. 
 #### twitter/x: @ilyamirox
-#### reddit: r/ilyamiro1 (my account is suspended for 2 days so i might not be able to respond)
+#### reddit: u/ilyamiro-fix  (my main account is suspended for 2 days so i might not be able to respond)
 #### telegram: @sacrificeit
 #### email: ilyamiro.work@gmail.com
 
