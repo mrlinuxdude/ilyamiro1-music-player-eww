@@ -2,14 +2,12 @@
 
 ### You can find all of my wallpapers **[HERE](https://github.com/ilyamiro/shell-wallpapers)**.
 
-## I AM CURRENTLY LOOKING FOR INSTALL SCRIPTS TESTERS FOR ARCH LINUX AND ITS DERIVATIVES. REACH OUT TO ME FOR INFORMATION. 
-#### twitter/x: @ilyamirox
-#### reddit: u/ilyamiro1 
-#### telegram: @sacrificeit
-#### email: ilyamiro.work@gmail.com
+### Update 05.04.26
+##Arch installer now in alpha testing mode available for everyone. Just run this: 
 
-### Update 30.03.26
-As of now, due to an increased demand, I am working on installation scripts. The first version will be out in the span of the next 7 days. Thank you for your support!
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/ilyamiro/imperative-dots/master/install.sh)"
+```
 
 ---
 
