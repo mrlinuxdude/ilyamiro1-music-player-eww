@@ -22,8 +22,8 @@
     ];
       
     bindl = [
-      "ALT_L, SHIFT_L, exec, hyprctl switchxkblayout main prev"
-      "SHIFT_L, ALT_L, exec, hyprctl switchxkblayout main next"
+      # "ALT_L, SHIFT_L, exec, hyprctl switchxkblayout main prev"
+      # "SHIFT_L, ALT_L, exec, hyprctl switchxkblayout main next"
       
       ", Caps_Lock, exec, sleep 0.1 && swayosd-client --caps-lock"
 
