@@ -65,6 +65,7 @@
       "$mainMod, N, exec, bash ~/.config/hypr/scripts/qs_manager.sh toggle network"
       "$mainMod&SHIFT_L, T, exec, bash ~/.config/hypr/scripts/qs_manager.sh toggle focustime"
       "$mainMod, V, exec, bash ~/.config/hypr/scripts/qs_manager.sh toggle volume"
+      "$mainMod, H, exec, bash ~/.config/hypr/scripts/qs_manager.sh toggle guide"
 
       "$mainMod, F, exec, firefox"
       "$mainMod, E, exec, nautilus"
